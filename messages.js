@@ -11,7 +11,15 @@
 
 function process_messages()
 {
-    var conversations = new Array();
+    var conversations = {};
+    conversations.threads = new Array();
+
+    conversations.my_name = $($("#rhs > h1")).html();
+    conversations.my_url = $($(".downloadnotice > a")).attr("href");
+
+    console.log($($(".downloadnotice")).html().split("</a>) on ")[1].replace(" at", ''));
+
+    return conversations;
 
     $(".thread").each(function(i, obj) {
         // console.log(obj);
@@ -66,7 +74,7 @@ function process_messages()
             cur_conv.message_count++;
         });
 
-        conversations.push(cur_conv);
+        conversations.threads.push(cur_conv);
     });
 
     return conversations;
@@ -79,7 +87,7 @@ function round_half(num)
 
 function output_stats_console(conversations)
 {
-    $.each(conversations, function(i, conv){
+    $.each(conversations.threads, function(i, conv){
         console.log("Conversation between: " + conv.people.join(", "));
         console.log("\tTotal messages: " + conv.message_count);
         $.each(conv.author_message_count, function(author, count){
