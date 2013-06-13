@@ -1,5 +1,11 @@
 var fbstats = fbstats || {};
 fbstats.fs_bytes = 30 * 1024 * 1024; // 30 MB
+API_CALL_DELAY = 2100; // ms
+
+function call_delay(lambda)
+{
+    setTimeout(lambda, API_CALL_DELAY);
+}
 
 // stolen from: http://www.netlobo.com/url_query_string_javascript.html
 fbstats.get_url_param = function(name)
@@ -45,16 +51,22 @@ fbstats.finish_auth = function()
     fbstats.update_alert('error', '<strong>Error!</strong> Message data has not been collected yet. Go to Settings to collect data.');
 }
 
-
-fbstats.get_thread = function(thread)
+fbstats.get_thread = function(thread, idx, len)
 {
     thread.messages = [];
     FB.api('/' + thread.id, function(data){
+        if (data == null || data.from == null)
+        {
+            thread.bad = true; // indicates whether or not this thread should be processed. bad = insufficient information
+            call_delay(function() { fbstats.get_all_threads_helper(idx + 1, len); }); // "continue"
+            return;
+        }
+        console.log(data);
         initial_message = {};
         initial_message.from = data.from.id;
         initial_message.body = data.message;
 
-        fbstats.print_download_console("New thread! People: " + thread.people.map(function(id) { return fbstats.data.people[id].name; }).join(", "));
+        fbstats.print_download_console("Thread " + (idx + 1) + "/" + len + " People: " + thread.people.map(function(id) { return fbstats.data.people[id].name; }).join(", "));
 
         /*
             So apparently the Facebook Graph API doesn't give you the created_time of the first message.
@@ -62,20 +74,37 @@ fbstats.get_thread = function(thread)
             Thank this person: http://stackoverflow.com/questions/11762428/read-created-time-of-first-message-in-conversation
         */
 
-        FB.api('fql', {q: ('SELECT created_time FROM message WHERE thread_id="' + thread.id + '" LIMIT 1')}, function(response){
-            var the_date = new Date(response.data[0].created_time * 1000); // convert to ms
-            initial_message.timestamp = the_date.toISOString(); 
-            thread.messages.push(initial_message);
+        call_delay(function() {
+            FB.api('fql', {q: ('SELECT created_time FROM message WHERE thread_id="' + thread.id + '" LIMIT 1')}, function(response){
+                var the_date = new Date(response.data[0].created_time * 1000); // convert to ms
+                initial_message.timestamp = the_date.toISOString(); 
+                thread.messages.push(initial_message);
+
+                call_delay(function() { fbstats.get_all_threads_helper(idx + 1, len); });
+            });
         });
     });
+}
+
+
+// this function recursively calls itself on the next index after waiting at the tail
+// quick-hack for facebook's API limits
+fbstats.get_all_threads_helper = function(idx, len)
+{
+    if (idx >= len) return;
+
+    call_delay(function() { fbstats.get_thread(fbstats.data.threads[idx], idx, len); });
 }
 
 fbstats.get_all_threads = function()
 {
     fbstats.print_download_console("Counted " + fbstats.data.threads.length + " total threads");
-    $.each(fbstats.data.threads, function(idx, thread){
-        fbstats.get_thread(thread);
-    });
+
+    fbstats.get_all_threads_helper(0, fbstats.data.threads.length);
+
+    // $.each(fbstats.data.threads, function(idx, thread){
+    //     fbstats.get_thread(thread);
+    // });
 }
 
 fbstats.process_thread_list = function(partial_list)
@@ -94,7 +123,7 @@ fbstats.process_thread_list = function(partial_list)
         });
         fbstats.data.threads.push(current_thread);
     });
-    $.getJSON(partial_list.paging.next, fbstats.process_thread_list);
+    call_delay(function() { $.getJSON(partial_list.paging.next, fbstats.process_thread_list); });
 }
 
 fbstats.on_fs_init = function(fs)
@@ -206,7 +235,7 @@ fbstats.init = function()
         fbstats.print_download_console("Started downloading initial thread list");
 
         FB.api('/me/inbox', function(inbox){
-            fbstats.process_thread_list(inbox);
+            call_delay(fbstats.process_thread_list(inbox));
         });
     });
 
