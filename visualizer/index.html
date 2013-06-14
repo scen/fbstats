@@ -9,6 +9,7 @@
 		<script src="http://netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/js/bootstrap.min.js"></script>
 		<script src="http://cdnjs.cloudflare.com/ajax/libs/modernizr/2.6.2/modernizr.min.js"></script>
 		<script src="jquery.blockUI.js" type="text/javascript"></script>
+		<script src="bootbox.min.js" type="text/javascript"></script>
 		<script src="visualizer.js" type="text/javascript"></script>
 		<link href="http://netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/css/bootstrap-combined.min.css" rel="stylesheet">
 		<link href="visualizer.css" rel="stylesheet">
@@ -29,7 +30,7 @@
 							<span class="caret"></span>
 						</a>
 						<ul class="dropdown-menu">
-							<li><a href="#" id="facebook_logout">Logout from Facebook</a></li>
+							<li><a href="#" id="facebook_logout">Log out from Facebook</a></li>
 						</ul>
 					</div>
 				</div>
@@ -47,8 +48,9 @@
 					<div class="well">
 						<ul class="nav nav-list">
 							<li class="nav-header">Home</li>
-							<li class="active"><a href="#" id="overview" class="navbar_entry" header="Overview">Overview</a></li>
-							<li><a href="#" id="settings" class="navbar_entry" header="Settings">Settings</a></li>
+							<li class="active"><a href="#" id="settings" class="navbar_entry" header="Settings">Settings</a></li>
+							<li class="nav-header">Statistics</li>
+							<li class=""><a href="#" id="overview" class="navbar_entry" header="Overview">Overview</a></li>
 						</ul>
 					</div>
 				</div>
@@ -57,23 +59,35 @@
 					<hr>
 					<div id="page_content">
 						<div id="overview_content">
-							Test
 						</div>
 						<div id="settings_content">
-							<h4>Cached data date: </h4>
-							<p id="last_update_settings">None</p>	
-							<br>
+							<h4>Facebook actions</h4>
 							<div class="btn-group">
+								<a class="btn btn-success" href="#" id="delta_update">
+									Delta-update current data from Facebook
+								</a>
 								<a class="btn btn-primary" href="#" id="retrieve_btn">
-									Retrieve data from Facebook
+									Download all data from Facebook
+								</a>
+							</div>
+							<br>
+							<h4>Other actions</h4>
+							<div class="btn-group">
+								<a class="btn btn-info" id="save_data_local">
+									Download collected data to your computer
 								</a>
 								<a class="btn btn-danger" id="clear_cache_btn">
 									Clear cached data
 								</a>
 							</div>
-							<br><br>
+							<br>
+							<h4>Load data from computer</h4>
+							<p>Drag and drop a previously downloaded file into the box to load up that data</p>
+							<div class="well" id="dropbox">
+								<span>Drag file here</span>
+							</div>
 							<div class="progress progress-striped active" id="download_progress">
-								<div class="bar" style="width: 0%"></div>
+								<div class="bar" id="progress_bar" style="width: 0%"></div>
 							</div>
 							<div class="well">
 								<h5>Currently:</h5>
