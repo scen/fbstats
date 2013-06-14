@@ -1,7 +1,7 @@
 FB Statistics
 =============
 
-Provides stats on your downloaded facebook data. Currently it only processes facebook messages.
+Client-side facebook messaging analytics.
 
 Released under the MIT License, which is reproduced here:
 
