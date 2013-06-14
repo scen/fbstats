@@ -153,36 +153,46 @@ fbstats.get_thread_part3 = function (thread, idx, len, data) {
 
             var cnt = 0;
 
-            $.each(data.comments.data, function (idx, msg) {
-                if (msg == null || msg.from == null) {
-                    return;
-                }
-                cur_message = {};
-                cur_message.timestamp = msg.created_time;
-                cur_message.from = msg.from.id;
-                cur_message.id = parseInt(msg.id.split("_")[1]);
-                var tmp = msg.id.split('_');
-                if (tmp.length >= 2) {
-                    cnt = parseInt(tmp[1]);
-                }
-                cur_message.body = msg.message || "";
-                console.log(cur_message);
-                tbuf.push(cur_message);
-            });
-            fbstats._tmpcnt[idx] = cnt;
+            if (data != null && data.comments != null && data.comments.data != null)
+            {
+                $.each(data.comments.data, function (idx, msg) {
+                    if (msg == null || msg.from == null) {
+                        return;
+                    }
+                    cur_message = {};
+                    cur_message.timestamp = msg.created_time;
+                    cur_message.from = msg.from.id;
+                    cur_message.id = parseInt(msg.id.split("_")[1]);
+                    var tmp = msg.id.split('_');
+                    if (tmp.length >= 2) {
+                        cnt = parseInt(tmp[1]);
+                    }
+                    cur_message.body = msg.message || "";
+                    console.log(cur_message);
+                    tbuf.push(cur_message);
+                });
+                fbstats._tmpcnt[idx] = cnt;
 
-            $(tbuf.reverse()).each(function (idx, msg) {
-                thread.messages.splice(1, 0, msg);
-            });
+                $(tbuf.reverse()).each(function (idx, msg) {
+                    thread.messages.splice(1, 0, msg);
+                });
 
-            fbstats.print_download_console("Received " + (data.comments.data.length + 1) + " messages");
+                fbstats.print_download_console("Received " + (data.comments.data.length + 1) + " messages");
 
-            var lerp = 1.0 / len;
-            fbstats.set_progress_bar((idx / len) + (lerp * (thread.messages.length / cnt)));
+                var lerp = 1.0 / len;
+                fbstats.set_progress_bar((idx / len) + (lerp * (thread.messages.length / cnt)));
 
-            call_delay(function () {
-                fbstats.get_thread_part4(thread, idx, len, data);
-            });
+                call_delay(function () {
+                    fbstats.get_thread_part4(thread, idx, len, data);
+                });
+            }
+            else
+            {
+                console.log("At beginning of chat\n");
+                call_delay(function () {
+                    fbstats.get_all_threads_helper(idx + 1, len);
+                });
+            }
         }
 
     });
@@ -318,6 +328,7 @@ fbstats.process_thread_list = function (partial_list) {
         current_thread = {};
         current_thread.people = [];
         current_thread.id = thread.id;
+        current_thread.updated_time = thread.updated_time;
         $.each(thread.to.data, function (idx, person) {
             current_thread.people.push(person.id);
             if (fbstats.data.people[person.id] == null) fbstats.data.people[person.id] = {};
