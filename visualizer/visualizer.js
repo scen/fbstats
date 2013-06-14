@@ -52,6 +52,7 @@ fbstats.nav_to = function (name) {
         $(obj).hide();
     });
     $("#" + name + "_content").show();
+    console.log(name);
     fbstats.set_title($("#" + name).attr("header"));
 };
 
@@ -80,7 +81,7 @@ fbstats.get_thread_helper = function (data, idx, len) {
     if (data == null || data.data == null || data.data.length == 0) {
         console.log("At beginning of chat\n");
         call_delay(function () {
-            fbstats.get_all_threads_helper(idx + 1, -1);
+            fbstats.get_all_threads_helper(idx + 1, len);
         });
         return; // we reached the beginning of the chat
     }
@@ -332,13 +333,24 @@ fbstats.on_fs_init = function (fs) {
     fbstats.fs = fs;
 };
 
-fbstats.update_statistics() = function()
+fbstats.update_statistics = function()
 {
-    
+    $.each(fbstats.data.threads, function (idx, thread){
+        if (thread.bad == null)
+        {
+            var names = thread.people.map(function (id) {
+                return fbstats.data.people[id].name;
+            }).join(", ");
+            var elem = $("<li class='navbar_conversation'><a href='#' id='" + thread.id + "' class='navbar_entry' header='Conversation between " +
+                names + "'>" + names + "</a></li>");
+            $("#sidenav").append(elem);
+        }
+    });
 }
 
 fbstats.update_from_cache = function (fs) {
     fbstats.update_alert('error', '<strong>Error!</strong> Message data has not been collected yet. Go to Settings to collect data.');
+    $(".navbar_conversation").hide().remove();
     fbstats.read_file(fbstats.me.id, function (a, b, file_entry) {
         try {
             var str = b.result;
@@ -350,6 +362,7 @@ fbstats.update_from_cache = function (fs) {
                     var e = $("#save_data_local");
                     e.attr("download", fbstats.me.first_name+fbstats.me.last_name+"_"+fbstats.me.id+".txt");
                     e.attr("href", file_entry.toURL());
+                    fbstats.data = obj;
                     fbstats.update_statistics();
                 }
             }
@@ -543,11 +556,12 @@ fbstats.init = function () {
         });
     });
 
-    $(".navbar_entry").click(function (evt) {
+    $(document).on('click', '.navbar_entry', function (evt) {
         $(".navbar_entry").each(function (idx, obj) {
             $(obj).parent().removeClass("active");
         });
         var obj = evt.currentTarget;
+        console.log(obj);
         $(obj).parent().addClass("active");
         fbstats.nav_to($(obj).attr("id"));
     });

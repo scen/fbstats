@@ -1,0 +1,27 @@
+#login_facebook {
+	display: none
+}
+
+#user_dropdown {
+	display: none;
+}
+
+#page_content > div {
+	display: none;
+}
+
+#debug_console_download {
+	width: 99%;
+	text-align: left;
+	resize: none;
+}
+
+#dropbox {
+	height: 100px;
+	width: 100px;
+	border-color: #49afcd;
+}
+
+.highlight_border {
+	border-color: green !important;
+}
