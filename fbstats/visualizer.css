@@ -25,3 +25,11 @@
 .highlight_border {
 	border-color: green !important;
 }
+
+.overview_table_row {
+	cursor: pointer;
+}
+
+.chart300 {
+	display: inline-block;
+}

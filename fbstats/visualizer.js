@@ -10,6 +10,13 @@ function call_delay(lambda) {
     setTimeout(lambda, API_CALL_DELAY);
 }
 
+function round_half(num)
+{
+    return Math.round(num * 2) / 2;
+}
+
+// fbstats object
+
 // stolen from: http://www.netlobo.com/url_query_string_javascript.html
 fbstats.get_url_param = function (name) {
     name = name.replace(/[\[]/, "\\\[").replace(/[\]]/, "\\\]");
@@ -51,13 +58,32 @@ fbstats.nav_to = function (name) {
     $("#page_content > div").each(function (idx, obj) {
         $(obj).hide();
     });
+    console.log("#" + name + "_content");
     $("#" + name + "_content").show();
-    console.log(name);
-    fbstats.set_title($("#" + name).attr("header"));
+    // $('#' + name).click(function(evt){
+    //     evt.stopPropagation();
+    //     evt.preventDefault();
+    //     return false;
+    // });
+    console.log('nav_to ' + name);
+    history.pushState(null, null, '#' + name);
 };
 
 fbstats.finish_auth = function () {
-    fbstats.update_from_cache();
+    if (fbstats.me != null)
+    {
+        fbstats.update_from_cache(function(){
+            console.log(window.location.hash);
+            var hash = window.location.hash == "" ? "settings" : location.hash.slice(1);
+            console.log($("#" + hash));
+            fbstats.sim_click($("#" + hash)[0]);
+            fbstats.nav_to(hash);
+        });
+    }
+    else
+    {
+        // fbstats.nav_to("settings");
+    }
 };
 
 fbstats.get_thread_helper_part2 = function (data, idx, len) {
@@ -208,7 +234,7 @@ fbstats.get_thread_part2 = function (thread, idx, len, data) {
         console.log(data);
         initial_message = {};
         initial_message.from = data.from.id;
-        initial_message.body = data.message;
+        initial_message.body = data.message || "";
         initial_message.id = 0; // message id is THREADID_NUM
 
         fbstats.print_download_console("Thread " + (idx + 1) + " of " + len + " -> People: " + thread.people.map(function (id) {
@@ -232,7 +258,9 @@ fbstats.get_thread = function (thread, idx, len) {
     FB.api('/' + thread.id, {
         limit: 500
     }, function (data) {
-        if (data == null || data.from == null) {
+        // some parts are null
+        // or if it's an event.
+        if (data == null || data.from == null || (data.from != null && data.from.end_time != null)) {
             thread.bad = true; // indicates whether or not this thread should be processed. bad = insufficient information
             fbstats.print_download_console("Thread " + (idx + 1) + " of " + len + ": bad thread encountered... skipping");
             call_delay(function () {
@@ -263,6 +291,7 @@ fbstats.get_all_threads_helper = function (idx, len) {
     if (idx >= len) {
         fbstats.set_progress_bar(1.0);
         fbstats.print_download_console("Done!");
+        $("#retrieve_btn").button('reset');
         fbstats.data.timestamp = (new Date()).toISOString();
         var str = JSON.stringify(fbstats.data);
         console.log(str);
@@ -346,22 +375,240 @@ fbstats.on_fs_init = function (fs) {
 
 fbstats.update_statistics = function()
 {
+    var tbody = $("<tbody>");
     $.each(fbstats.data.threads, function (idx, thread){
         if (thread.bad == null)
         {
+            $("#progress_bar2").css("width", (100 * idx / fbstats.data.threads.length) + '%');
+            // compute some quick stats
+            var person_msg_count = {};
+            var person_char_count = {};
+            var mtable = "<table class='table table-striped table-hover'><thead>" +
+                "<tr><th>MessageID</th><th>From</th><th>Time sent</th><th>Message text</th></tr></thead><tbody>";
+            var char_count = 0;
+            $.each(thread.messages, function(idx, msg){
+                try{
+                mtable += "<tr><td>" + msg.id + "</td><td>" + fbstats.data.people[msg.from].name + "</td><td>" +
+                    (new Date(msg.timestamp)).toLocaleString() + "</td><td>" + (msg.body == null ? "" : msg.body) + "</td></tr>";
+                } catch(err)
+                {
+                    console.log(err.message);
+                }
+                if (msg.body != null)
+                {
+                    var len = msg.body.length;
+                    char_count += len;
+                    person_char_count[msg.from] = person_char_count[msg.from] == null ? len : person_char_count[msg.from] +
+                        len;
+                    person_msg_count[msg.from] = person_msg_count[msg.from] == null ? 1 : person_msg_count[msg.from] + 1;
+                }
+                else
+                {
+                    console.log("null message");
+                }
+            });
+            mtable += "</tbody>";
+            // Populate side nav bar
             var names = thread.people.map(function (id) {
                 return fbstats.data.people[id].name;
             }).join(", ");
-            var elem = $("<li class='navbar_conversation'><a href='#' id='" + thread.id + "' class='navbar_entry' header='Conversation between " +
-                names + "'>" + names + "</a></li>");
+            var elem = $("<li class='navbar_conversation'><a href='#' id='" + thread.id + "' class='navbar_entry'>" + names + "</a></li>");
             $("#sidenav").append(elem);
+            var mainelem = $("<div id='" + thread.id + "_content' class='main_conversation'><h3>Conversation between " + names + "</h3><hr></div>");
+            
+            // populate main overview table
+            var trow = $("<tr class='overview_table_row' data-id='" + thread.id + "'>");
+            var last_mod = new Date(thread.updated_time);
+            trow.append($("<td>" + last_mod.toLocaleString() + "</td>"));
+            trow.append($("<td>" + names + "</td>"));
+            trow.append($("<td>" + thread.messages.length + "</td>"));
+            trow.append($("<td>" + char_count + "</td>"));
+            tbody.append(trow);
+
+            // populate tabbing system
+            var tabs = $("<ul class='nav nav-tabs'>");
+            tabs.append($("<li class='active'><a data-toggle='tab' href='#" + thread.id + "_home'>Home</a></li>"));
+            tabs.append($("<li><a data-toggle='tab' href='#" + thread.id + "_mlist'>Message list</a></li>"));
+            mainelem.append(tabs);
+
+            // populate tab content
+            var tab_content = $("<div class='tab-content'>");
+            var home = $('<div class="tab-pane active" id="' + thread.id + '_home"></div>');
+            home.append("<h4>Aggregate statistics</h4>");
+            var table1 = $("<table class='table table-striped table-hover'><thead>" +
+                "<tr><th>Last action</th><th>Total messages sent</th><th>Total characters sent</th></thead>" +
+                "<tbody><tr><td>" + last_mod.toLocaleString() + "</td><td>" + thread.messages.length + "</td><td>" +
+                char_count + "</td></tr></tbody>" +
+                "</table>");
+            home.append(table1);
+            home.append($("<br><h4>Individual statistics</h4>"));
+            var table2html = "<table class='table table-striped table-hover'><thead>" +
+                "<tr><th>Name</th><th>Messages sent</th><th>Message %</th><th>Characters sent</th><th>" +
+                "Character %</th></tr></thead><tbody>";
+            $.each(thread.people, function(idx, id){
+                table2html += "<tr><td>" + fbstats.data.people[id].name + "</td><td>" + (person_msg_count[id] || 0)
+                    + "</td><td>" + round_half(100 * (person_msg_count[id] || 0) / thread.messages.length) + "</td><td>" +
+                    (person_char_count[id] || 0) + "</td><td>" + round_half(100 * (person_char_count[id] || 0) / char_count) + "</td></tr>";
+            });
+            table2html += "</tbody>";
+            var table2 = $(table2html);
+            
+            home.append(table2);
+            var msg_pichart = $("<div class='chart300' id='" + thread.id + "_msgpichart'>");
+            var char_pichart = $("<div class='chart300' id='" + thread.id + "_charpichart'>");
+            home.append(msg_pichart);
+            home.append(char_pichart);
+            msg_pichart.highcharts({
+                title: {
+                    text: 'Message sending distribution'
+                },
+                tooltip: {
+                    pointFormat: "{series.name}: <b>{point.percentage}</b>",
+                    percentageDecimals: 1
+                },
+                plotOptions: {
+                    pie: {
+                        allowPointSelect: true,
+                        cursor: "pointer",
+                        dataLabels: {
+                            enabled: false
+                        },
+                        showInLegend: true
+                    }
+                },
+                credits:{enabled:false},
+                series: [{
+                    type: 'pie',
+                    name: 'Message %',
+                    data: $.map(person_msg_count, function(val, key){
+                        return [[fbstats.data.people[key].name, val]];
+                    })
+                }]
+            });
+            char_pichart.highcharts({
+                title: {
+                    text: 'Character sending distribution'
+                },
+                tooltip: {
+                    pointFormat: "{series.name}: <b>{point.percentage}</b>",
+                    percentageDecimals: 1
+                },
+                plotOptions: {
+                    pie: {
+                        allowPointSelect: true,
+                        cursor: "pointer",
+                        dataLabels: {
+                            enabled: false
+                        },
+                        showInLegend: true
+                    }
+                },
+                credits:{enabled:false},
+                series: [{
+                    type: 'pie',
+                    name: 'Character %',
+                    data: $.map(person_char_count, function(val, key){
+                        return [[fbstats.data.people[key].name, val]];
+                    })
+                }]
+            });
+            tab_content.append(home);
+
+            var mlist = $('<div class="tab-pane" id="' + thread.id + '_mlist"></div>');
+            mlist.append("<h4>Messages</h4>");
+            var emtable = $(mtable);
+
+            mlist.append(emtable);
+            
+            tab_content.append(mlist);
+
+            mainelem.append(tab_content);
+
+            // finally, update the page
+            $("#page_content").append(mainelem);
+
+            $("#progress_bar2").css("width", "100%");
+
+            emtable.dataTable({
+                bDestroy: true,
+                aaSorting: [[0, 'asc']],
+                sPaginationType: "bootstrap",
+                iDisplayLength: 100,
+                aLengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
+                oLanguage: {
+                    sLengthMenu: "_MENU_ messages per page"
+                },
+                bAutoWidth: false,
+                aoColumns: [
+                {
+                    bSortable: true,
+                    sWidth: "5%"
+                },
+                {
+                    sWidth: "15%",
+                    bSortable: true,
+                },
+                {
+                    sType: "date", 
+                    bSortable: true,
+                    sWidth: "15%"
+                },
+                {
+                    bSortable: true,
+                }
+            ]
+            });
+
+            table2.dataTable({
+                bDestroy: true,
+                aLengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
+                aaSorting: [[1, "desc"]],
+                sPaginationType: "bootstrap",
+                iDisplayLength: 10,
+                oLanguage: {
+                    sLengthMenu: "_MENU_ people per page"
+                },
+            });
         }
+    });
+    $("#overview_table").append(tbody);
+    $('#overview_table').dataTable( {
+        bDestroy: true,
+        sPaginationType: "bootstrap",
+        iDisplayLength: 25,
+        oLanguage: {
+            sLengthMenu: "_MENU_ threads per page"
+        },
+        bAutoWidth: false,
+        aaSorting: [[0, "desc"]],
+        aLengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']],
+        aoColumns: [
+            {
+                sType: "date", 
+                bSortable: true,
+                sWidth: "20%"
+            },
+            {
+                bSortable: true,
+                sWidth: "50%"
+            },
+            {
+                sWidth: "15%",
+                bSortable: true,
+            },
+            {
+                sWidth: "15%",
+                bSortable: true,
+            }
+        ]
     });
 }
 
-fbstats.update_from_cache = function (fs) {
+fbstats.update_from_cache = function (success) {
     fbstats.update_alert('error', '<strong>Error!</strong> Message data has not been collected yet. Go to Settings to collect data.');
-    $(".navbar_conversation").hide().remove();
+    $(".navbar_conversation").remove();
+    $("#overview_table > tbody").remove();
+    $(".main_conversation").remove();
     fbstats.read_file(fbstats.me.id, function (a, b, file_entry) {
         try {
             var str = b.result;
@@ -375,12 +622,24 @@ fbstats.update_from_cache = function (fs) {
                     e.attr("href", file_entry.toURL());
                     fbstats.data = obj;
                     fbstats.update_statistics();
+                    if (success != null) success();
                 }
             }
         } catch (err) {
             console.log(err);
         }
+    }, function(err){
+        success();
     });
+};
+
+fbstats.sim_click = function(obj)
+{
+    $(".navbar_entry").each(function (idx, obj) {
+        $(obj).parent().removeClass("active");
+    });
+    $(obj).parent().addClass("active");
+    fbstats.nav_to($(obj).attr("id"));
 };
 
 fbstats.create_file = function (name, success) {
@@ -406,7 +665,7 @@ fbstats.write_file = function (name, text, success) {
     }, fbstats.fs_error_handler);
 };
 
-fbstats.read_file = function (name, success) {
+fbstats.read_file = function (name, success, err) {
     fbstats.fs.root.getFile(name, {
         create: false
     }, function (file_entry) {
@@ -416,8 +675,8 @@ fbstats.read_file = function (name, success) {
                 if (success != null) success(e, this, file_entry);
             };
             reader.readAsText(file);
-        }, fbstats.fs_error_handler);
-    }, fbstats.fs_error_handler);
+        }, err == null ? fbstats.fs_error_handler : err);
+    }, err == null ? fbstats.fs_error_handler : err);
 };
 
 fbstats.delete_file = function (name, success, error_handler) {
@@ -465,7 +724,7 @@ fbstats.print_download_console = function (text) {
 fbstats.retrieve_btn_click = function () {
     // $("#last_update_settings").html((new Date()).toString());
     fbstats.set_progress_bar(0);
-
+    $("#retrieve_btn").button('loading');
     // initialize data object
     fbstats.data = {};
     fbstats.data.threads = [];
@@ -495,7 +754,9 @@ fbstats.init = function () {
         return;
     }
     $.blockUI({
-        message: "<h4>initializing, please wait...</h4>"
+        message: "<h4>Initializing, loading, and parsing data. Please wait...</h4>" +
+            '<div class="progress progress-striped active" id="load_progress" style="width:90%;margin: 0 auto;margin-bottom:10px;">' +
+                    '<div class="bar" id="progress_bar2" style="width: 0%"></div></div>'
     });
     window.fbAsyncInit = function () {
         FB.init({
@@ -516,14 +777,13 @@ fbstats.init = function () {
                 });
             } else {
                 $("#login_facebook").show();
+                $("#progress_bar2").css("width", "100%");
                 $.unblockUI();
             }
         });
     };
-
+    $("#progress_bar2").css('width', '80%');
     jQuery.event.props.push("dataTransfer");
-
-    fbstats.nav_to("settings");
 
     $("#login_with_facebook").click(function () {
         FB.login(function (response) {
@@ -568,13 +828,10 @@ fbstats.init = function () {
     });
 
     $(document).on('click', '.navbar_entry', function (evt) {
-        $(".navbar_entry").each(function (idx, obj) {
-            $(obj).parent().removeClass("active");
-        });
         var obj = evt.currentTarget;
-        console.log(obj);
-        $(obj).parent().addClass("active");
-        fbstats.nav_to($(obj).attr("id"));
+        evt.stopPropagation();
+        evt.preventDefault();
+        fbstats.sim_click(obj);
     });
 
     // initialize file system stuff
@@ -654,7 +911,27 @@ fbstats.init = function () {
         }
     });
 
+    $(window).hashchange(function(){
+        fbstats.sim_click($('#' + location.hash.slice(1)));
+    });
 
+    $("#delta_update").click(function(){
+        $(this).button('loading');
+        call_delay(function(){ $("#delta_update").button('reset'); });
+    });
+
+    $(document).on('click', '.overview_table_row', function(evt){
+        var id = $(evt.target).parent().attr('data-id');
+        if (id == null) return false;
+        fbstats.sim_click($('#' + id));
+    });
+
+    setTimeout(function() {
+        if (location.hash)
+        {
+            window.scrollTo(0, 0);
+        }
+    }, 1);
 
     (function (d, s, id) {
         var js, fjs = d.getElementsByTagName(s)[0];

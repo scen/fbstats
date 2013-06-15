@@ -19,7 +19,7 @@ function process_messages()
 
     console.log($($(".downloadnotice")).html().split("</a>) on ")[1].replace(" at", ''));
 
-    return conversations;
+    // return conversations;
 
     $(".thread").each(function(i, obj) {
         // console.log(obj);
@@ -104,8 +104,8 @@ function dump_json(conversations)
 var button = $("<button>Process messages</button>");
 button.click(function(){
     var conversations = process_messages();
-    // output_stats_console(conversations);
-    dump_json(conversations);
+    output_stats_console(conversations);
+    // dump_json(conversations);
 });
 $("#content").prepend(button);
 
