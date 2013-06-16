@@ -520,25 +520,6 @@ fbstats.generate_trends = function(tid)
     first_date.setHours(0, 0, 0, 0);
 
     var lambda_recreate_chart = function(data_series, t, yax) {
-        // trend_chart.highcharts({
-        //     chart: {
-        //         zoomType: 'x',
-        //         type: 'spline'
-        //     },
-        //     credits: {enabled:false},
-        //     title: {text: t},
-        //     subtitle: {text: 'Click and drag in the plot to zoom in. Click the legend to toggle data.'},
-        //     xAxis: {
-        //         type: 'datetime',
-        //         maxZoom: 24 * 3600000, // 1 day
-        //     },
-        //     yAxis: {
-        //         title: {text: yax}, 
-        //         min: 0
-        //     },
-        //     series: data_series
-
-        // });
         trend_chart.highcharts({
             chart: {
                 zoomType: 'x',
@@ -566,13 +547,6 @@ fbstats.generate_trends = function(tid)
             }
         });
     };
-    // var total_msg_chart_data = {
-    //     name: "Total Messages", 
-    //     data: $.map(fbstats.message_count_per_day, function(v, k) {
-    //         var kk = k.split(',').map(function(val) { return parseInt(val); });
-    //         return [[new Date(kk[0], kk[1] - 1, kk[2]).getTime(), v]];
-    //     })
-    // };
     var total_msg_chart_data = {
         name: "Total Messages", 
         pointInterval: 24 * 3600 * 1000,
@@ -584,7 +558,7 @@ fbstats.generate_trends = function(tid)
     while (first_date <= today)
     {
         var idx = [first_date.getFullYear(), first_date.getMonth() + 1, first_date.getDate()];
-        total_msg_chart_data.data.push(fbstats.message_count_per_day[idx] || 0);
+        total_msg_chart_data.data.push(fbstats.message_count_per_day[tid][idx] || 0);
         first_date.setDate(first_date.getDate() + 1);
     }
     $(document).on('click', '#' + thread.id + 'mcountbtn', function(evt){
@@ -607,7 +581,7 @@ fbstats.gen_thread = function(tid)
         var mtable = "<table class='table table-striped table-hover'><thead>" +
             "<tr><th>MsgID</th><th>From</th><th>Time sent</th><th>Message text</th></tr></thead><tbody>";
         var char_count = 0;
-        fbstats.message_count_per_day = {};
+        fbstats.message_count_per_day[tid] = {};
         fbstats.person_msg_count[tid] = {};
         $.each(thread.messages, function(idx, msg){
             try{
@@ -619,8 +593,8 @@ fbstats.gen_thread = function(tid)
             }
             var dd = new Date(msg.timestamp);
             var ds = [dd.getFullYear(), dd.getMonth() + 1, dd.getDate()];
-            fbstats.message_count_per_day[ds] = fbstats.message_count_per_day[ds] || 0;
-            fbstats.message_count_per_day[ds]++; 
+            fbstats.message_count_per_day[tid][ds] = fbstats.message_count_per_day[tid][ds] || 0;
+            fbstats.message_count_per_day[tid][ds]++; 
             if (msg.body != null)
             {
                 var len = msg.body.length;
