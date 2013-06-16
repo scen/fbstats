@@ -474,6 +474,9 @@ fbstats.update_from_cache = function (success) {
     $(".main_conversation").remove();
     fbstats.regen_overview_table().fnClearTable();
     fbstats.did_gen_thread = {};
+    fbstats.message_count_per_day = {};
+    fbstats.person_msg_count = {};
+    fbstats.person_char_count = {};
     fbstats.read_file(fbstats.me.id, function (a, b, file_entry) {
         try {
             var str = b.result;
@@ -500,18 +503,112 @@ fbstats.update_from_cache = function (success) {
     });
 };
 
+fbstats.generate_trends = function(tid)
+{
+    var thread = fbstats.data.threads[fbstats.tid_to_idx[tid]];
+    var trends = $('#' + tid + "_trends");
+    var metric_radio = $("<div class='btn-group' data-toggle='buttons-radio' style='display:block;'>" +
+        "<button type='button' class='btn active' id='" + thread.id + "mcountbtn'>Message count</button>" +
+        "<button type='button' class='btn' id='" + thread.id + "ccbtn'>Character count</button>" +
+        "<button type='button' class='btn' id='" + thread.id + "acmbtn'>Avg. characters per message</button></div>");
+    
+    trends.append(metric_radio);
+    var trend_chart = $("<div class='chartfull' id='" + thread.id + "_trendchart'>");
+    trends.append(trend_chart);
+
+    var first_date = new Date(thread.messages[0].timestamp);
+    first_date.setHours(0, 0, 0, 0);
+
+    var lambda_recreate_chart = function(data_series, t, yax) {
+        // trend_chart.highcharts({
+        //     chart: {
+        //         zoomType: 'x',
+        //         type: 'spline'
+        //     },
+        //     credits: {enabled:false},
+        //     title: {text: t},
+        //     subtitle: {text: 'Click and drag in the plot to zoom in. Click the legend to toggle data.'},
+        //     xAxis: {
+        //         type: 'datetime',
+        //         maxZoom: 24 * 3600000, // 1 day
+        //     },
+        //     yAxis: {
+        //         title: {text: yax}, 
+        //         min: 0
+        //     },
+        //     series: data_series
+
+        // });
+        trend_chart.highcharts({
+            chart: {
+                zoomType: 'x',
+                type: 'line'
+            },
+            credits: {enabled:false},
+            title: {text: t},
+            subtitle: {text: 'Click and drag in the plot to zoom in. Click the legend to toggle data.'},
+            xAxis: {
+                type: 'datetime',
+                maxZoom: 24 * 3600000, // 1 day
+            },
+            yAxis: {
+                title: {text: yax}, 
+                startOnTick: false
+            },
+            series: data_series,
+            plotOptions: {
+                line: {
+                    lineWidth: 2,
+                    marker: {
+                        enabled: false
+                    }
+                }
+            }
+        });
+    };
+    // var total_msg_chart_data = {
+    //     name: "Total Messages", 
+    //     data: $.map(fbstats.message_count_per_day, function(v, k) {
+    //         var kk = k.split(',').map(function(val) { return parseInt(val); });
+    //         return [[new Date(kk[0], kk[1] - 1, kk[2]).getTime(), v]];
+    //     })
+    // };
+    var total_msg_chart_data = {
+        name: "Total Messages", 
+        pointInterval: 24 * 3600 * 1000,
+        pointStart: first_date.getTime(),
+        data: []
+    };
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    while (first_date <= today)
+    {
+        var idx = [first_date.getFullYear(), first_date.getMonth() + 1, first_date.getDate()];
+        total_msg_chart_data.data.push(fbstats.message_count_per_day[idx] || 0);
+        first_date.setDate(first_date.getDate() + 1);
+    }
+    $(document).on('click', '#' + thread.id + 'mcountbtn', function(evt){
+
+    }).on('click', '#' + thread.id + 'ccbtn', function(evt){
+
+    }).on('click', '#' + thread.id + 'acmbtn', function(evt){
+
+    });
+    lambda_recreate_chart([total_msg_chart_data], "Messages per day", "Messages");
+}
+
 fbstats.gen_thread = function(tid)
 {
     var thread = fbstats.data.threads[fbstats.tid_to_idx[tid]];
     if (thread.bad == null)
     {
         // compute some quick stats
-        var person_msg_count = {};
-        var person_char_count = {};
+        fbstats.person_char_count[tid] = {};
         var mtable = "<table class='table table-striped table-hover'><thead>" +
             "<tr><th>MsgID</th><th>From</th><th>Time sent</th><th>Message text</th></tr></thead><tbody>";
         var char_count = 0;
-        var message_count_per_day = {};
+        fbstats.message_count_per_day = {};
+        fbstats.person_msg_count[tid] = {};
         $.each(thread.messages, function(idx, msg){
             try{
             mtable += "<tr><td>" + msg.id + "</td><td>" + fbstats.data.people[msg.from].name + "</td><td>" +
@@ -522,15 +619,15 @@ fbstats.gen_thread = function(tid)
             }
             var dd = new Date(msg.timestamp);
             var ds = [dd.getFullYear(), dd.getMonth() + 1, dd.getDate()];
-            message_count_per_day[ds] = message_count_per_day[ds] || 0;
-            message_count_per_day[ds]++; 
+            fbstats.message_count_per_day[ds] = fbstats.message_count_per_day[ds] || 0;
+            fbstats.message_count_per_day[ds]++; 
             if (msg.body != null)
             {
                 var len = msg.body.length;
                 char_count += len;
-                person_char_count[msg.from] = person_char_count[msg.from] == null ? len : person_char_count[msg.from] +
+                fbstats.person_char_count[tid][msg.from] = fbstats.person_char_count[tid][msg.from] == null ? len : fbstats.person_char_count[tid][msg.from] +
                     len;
-                person_msg_count[msg.from] = person_msg_count[msg.from] == null ? 1 : person_msg_count[msg.from] + 1;
+                fbstats.person_msg_count[tid][msg.from] = fbstats.person_msg_count[tid][msg.from] == null ? 1 : fbstats.person_msg_count[tid][msg.from] + 1;
             }
             else
             {
@@ -560,7 +657,7 @@ fbstats.gen_thread = function(tid)
         var tabs = $("<ul class='nav nav-tabs'>");
         tabs.append($("<li class='active'><a data-toggle='tab' href='#" + thread.id + "_home'>Home</a></li>"));
         tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-toggle='tab' href='#" + thread.id + "_mlist'>Message list</a></li>"));
-        tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-toggle='tab' href='#" + thread.id + "_trends'>Trends over time</a></li>"));
+        tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-tab-type='trends' data-toggle='tab' href='#" + thread.id + "_trends'>Trends over time</a></li>"));
         tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-toggle='tab' href='#" + thread.id + "_active'>Most active</a></li>"));
         tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-toggle='tab' href='#" + thread.id + "_words'>Popular words</a></li>"));
         mainelem.append(tabs);
@@ -580,10 +677,10 @@ fbstats.gen_thread = function(tid)
             "<tr><th>Name</th><th>Messages sent</th><th>Message %</th><th>Characters sent</th><th>" +
             "Character %</th><th>Avg. characters per message</th></tr></thead><tbody>";
         $.each(thread.people, function(idx, id){
-            table2html += "<tr><td>" + fbstats.data.people[id].name + "</td><td>" + (person_msg_count[id] || 0)
-                + "</td><td>" + round_tenth(100 * (person_msg_count[id] || 0) / thread.messages.length) + "</td><td>" +
-                (person_char_count[id] || 0) + "</td><td>" + round_tenth(100 * (person_char_count[id] || 0) / char_count) + "</td>" +
-                "<td>" + (person_msg_count[id] == null ? 0 : round_tenth(person_char_count[id] / person_msg_count[id])) + "</td></tr>";
+            table2html += "<tr><td>" + fbstats.data.people[id].name + "</td><td>" + (fbstats.person_msg_count[tid][id] || 0)
+                + "</td><td>" + round_tenth(100 * (fbstats.person_msg_count[tid][id] || 0) / thread.messages.length) + "</td><td>" +
+                (fbstats.person_char_count[tid][id] || 0) + "</td><td>" + round_tenth(100 * (fbstats.person_char_count[tid][id] || 0) / char_count) + "</td>" +
+                "<td>" + (fbstats.person_msg_count[tid][id] == null ? 0 : round_tenth(fbstats.person_char_count[tid][id] / fbstats.person_msg_count[tid][id])) + "</td></tr>";
         });
         table2html += "</tbody>";
         var table2 = $(table2html);
@@ -615,7 +712,7 @@ fbstats.gen_thread = function(tid)
             series: [{
                 type: 'pie',
                 name: 'Message %',
-                data: $.map(person_msg_count, function(val, key){
+                data: $.map(fbstats.person_msg_count[tid], function(val, key){
                     return [[fbstats.data.people[key].name, val]];
                 })
             }]
@@ -642,7 +739,7 @@ fbstats.gen_thread = function(tid)
             series: [{
                 type: 'pie',
                 name: 'Character %',
-                data: $.map(person_char_count, function(val, key){
+                data: $.map(fbstats.person_char_count[tid], function(val, key){
                     return [[fbstats.data.people[key].name, val]];
                 })
             }]
@@ -657,101 +754,12 @@ fbstats.gen_thread = function(tid)
         
         tab_content.append(mlist);
 
-
+        // trends tab -> we delay the generation until the tab is clicked
+        // so the javascript can calculate the width/height after it becomes visible
         var trends = $('<div class="tab-pane" id="' + thread.id + '_trends"></div>');
-        var metric_radio = $("<div class='btn-group' data-toggle='buttons-radio' style='display:block;'>" +
-            "<button type='button' class='btn active' id='" + thread.id + "mcountbtn'>Message count</button>" +
-            "<button type='button' class='btn' id='" + thread.id + "ccbtn'>Character count</button>" +
-            "<button type='button' class='btn' id='" + thread.id + "acmbtn'>Avg. characters per message</button></div>");
-        
-        trends.append(metric_radio);
-        var trend_chart = $("<div class='chart300' id='" + thread.id + "_trendchart'>");
-        trends.append(trend_chart);
-
-        var first_date = new Date(thread.messages[0].timestamp);
-        first_date.setHours(0, 0, 0, 0);
-
-        var lambda_recreate_chart = function(data_series, t, yax) {
-            // trend_chart.highcharts({
-            //     chart: {
-            //         zoomType: 'x',
-            //         type: 'spline'
-            //     },
-            //     credits: {enabled:false},
-            //     title: {text: t},
-            //     subtitle: {text: 'Click and drag in the plot to zoom in. Click the legend to toggle data.'},
-            //     xAxis: {
-            //         type: 'datetime',
-            //         maxZoom: 24 * 3600000, // 1 day
-            //     },
-            //     yAxis: {
-            //         title: {text: yax}, 
-            //         min: 0
-            //     },
-            //     series: data_series
-
-            // });
-            trend_chart.highcharts({
-                chart: {
-                    zoomType: 'x',
-                    type: 'line'
-                },
-                credits: {enabled:false},
-                title: {text: t},
-                subtitle: {text: 'Click and drag in the plot to zoom in. Click the legend to toggle data.'},
-                xAxis: {
-                    type: 'datetime',
-                    maxZoom: 24 * 3600000, // 1 day
-                },
-                yAxis: {
-                    title: {text: yax}, 
-                    startOnTick: false
-                },
-                series: data_series,
-                plotOptions: {
-                    line: {
-                        lineWidth: 2,
-                        marker: {
-                            enabled: false
-                        }
-                    }
-                }
-            });
-        };
-        // var total_msg_chart_data = {
-        //     name: "Total Messages", 
-        //     data: $.map(message_count_per_day, function(v, k) {
-        //         var kk = k.split(',').map(function(val) { return parseInt(val); });
-        //         return [[new Date(kk[0], kk[1] - 1, kk[2]).getTime(), v]];
-        //     })
-        // };
-        var total_msg_chart_data = {
-            name: "Total Messages", 
-            pointInterval: 24 * 3600 * 1000,
-            pointStart: first_date.getTime(),
-            data: []
-        };
-        var today = new Date();
-        today.setHours(0, 0, 0, 0);
-        while (first_date <= today)
-        {
-            var idx = [first_date.getFullYear(), first_date.getMonth() + 1, first_date.getDate()];
-            total_msg_chart_data.data.push(message_count_per_day[idx] || 0);
-            first_date.setDate(first_date.getDate() + 1);
-        }
-        $(document).on('click', '#' + thread.id + 'mcountbtn', function(evt){
-
-        }).on('click', '#' + thread.id + 'ccbtn', function(evt){
-
-        }).on('click', '#' + thread.id + 'acmbtn', function(evt){
-
-        });
         tab_content.append(trends);
 
         mainelem.append(tab_content);
-
-        // finally, update the page
-        $("#page_content").append(mainelem);
 
         emtable.dataTable({
             bDestroy: true,
@@ -782,7 +790,6 @@ fbstats.gen_thread = function(tid)
             }
         ]
         });
-        lambda_recreate_chart([total_msg_chart_data], "Messages per day", "Messages");
 
         table2.dataTable({
             bDestroy: true,
@@ -793,7 +800,10 @@ fbstats.gen_thread = function(tid)
             oLanguage: {
                 sLengthMenu: "_MENU_ people per page"
             },
-        });
+        });        
+
+        // finally, update the page
+        $("#page_content").append(mainelem);
     }
 }
 
@@ -1094,6 +1104,14 @@ fbstats.init = function () {
     $("#delta_update").click(function(){
         $(this).button('loading');
         call_delay(function(){ $("#delta_update").button('reset'); });
+    });
+
+    $(document).on('click', '.thread_tab', function(evt){
+        var tgt = $(evt.target);
+        if (tgt.attr('data-tab-type') == 'trends')
+        {
+            fbstats.generate_trends(tgt.attr('data-tid'));
+        }
     });
 
     $(document).on('click', '.overview_table_row', function(evt){
