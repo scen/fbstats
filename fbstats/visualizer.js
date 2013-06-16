@@ -10,11 +10,10 @@ function call_delay(lambda) {
     setTimeout(lambda, API_CALL_DELAY);
 }
 
-function round_half(num)
+function round_tenth(num)
 {
-    return Math.round(num * 2) / 2;
+    return parseFloat((Math.round(num * 10) / 10).toFixed(1));
 }
-
 // fbstats object
 
 // stolen from: http://www.netlobo.com/url_query_string_javascript.html
@@ -386,6 +385,7 @@ fbstats.update_statistics = function()
             var mtable = "<table class='table table-striped table-hover'><thead>" +
                 "<tr><th>MessageID</th><th>From</th><th>Time sent</th><th>Message text</th></tr></thead><tbody>";
             var char_count = 0;
+            var message_count_per_day = {};
             $.each(thread.messages, function(idx, msg){
                 try{
                 mtable += "<tr><td>" + msg.id + "</td><td>" + fbstats.data.people[msg.from].name + "</td><td>" +
@@ -394,6 +394,10 @@ fbstats.update_statistics = function()
                 {
                     console.log(err.message);
                 }
+                var dd = new Date(msg.timestamp);
+                var ds = [dd.getFullYear(), dd.getMonth() + 1, dd.getDate()];
+                message_count_per_day[ds] = message_count_per_day[ds] || 0;
+                message_count_per_day[ds]++; 
                 if (msg.body != null)
                 {
                     var len = msg.body.length;
@@ -408,19 +412,30 @@ fbstats.update_statistics = function()
                 }
             });
             mtable += "</tbody>";
+
+
+            var except_me = [];
+            $.each(thread.people, function(idx, id){
+                if (id != fbstats.me.id)
+                {
+                    except_me.push(fbstats.data.people[id].name);
+                }
+            });
+            var names_without_me = except_me.join(', ');
             // Populate side nav bar
             var names = thread.people.map(function (id) {
                 return fbstats.data.people[id].name;
             }).join(", ");
-            var elem = $("<li class='navbar_conversation'><a href='#' id='" + thread.id + "' class='navbar_entry'>" + names + "</a></li>");
+            var and_names_without_me = except_me.slice(0, except_me.length).join(', ') + (except_me.length <= 1 ? '' : ' and ' + except_me[except_me.length - 1]);
+            var elem = $("<li class='navbar_conversation'><a href='#' id='" + thread.id + "' class='navbar_entry'>" + names_without_me + "</a></li>");
             $("#sidenav").append(elem);
-            var mainelem = $("<div id='" + thread.id + "_content' class='main_conversation'><h3>Conversation between " + names + "</h3><hr></div>");
+            var mainelem = $("<div id='" + thread.id + "_content' class='main_conversation'><h3>Conversation with " + and_names_without_me + "</h3><hr></div>");
             
             // populate main overview table
             var trow = $("<tr class='overview_table_row' data-id='" + thread.id + "'>");
             var last_mod = new Date(thread.updated_time);
             trow.append($("<td>" + last_mod.toLocaleString() + "</td>"));
-            trow.append($("<td>" + names + "</td>"));
+            trow.append($("<td>" + names_without_me + "</td>"));
             trow.append($("<td>" + thread.messages.length + "</td>"));
             trow.append($("<td>" + char_count + "</td>"));
             tbody.append(trow);
@@ -429,6 +444,9 @@ fbstats.update_statistics = function()
             var tabs = $("<ul class='nav nav-tabs'>");
             tabs.append($("<li class='active'><a data-toggle='tab' href='#" + thread.id + "_home'>Home</a></li>"));
             tabs.append($("<li><a data-toggle='tab' href='#" + thread.id + "_mlist'>Message list</a></li>"));
+            tabs.append($("<li><a data-toggle='tab' href='#" + thread.id + "_trends'>Trends over time</a></li>"));
+            tabs.append($("<li><a data-toggle='tab' href='#" + thread.id + "_active'>Most active</a></li>"));
+            tabs.append($("<li><a data-toggle='tab' href='#" + thread.id + "_words'>Popular words</a></li>"));
             mainelem.append(tabs);
 
             // populate tab content
@@ -444,11 +462,12 @@ fbstats.update_statistics = function()
             home.append($("<br><h4>Individual statistics</h4>"));
             var table2html = "<table class='table table-striped table-hover'><thead>" +
                 "<tr><th>Name</th><th>Messages sent</th><th>Message %</th><th>Characters sent</th><th>" +
-                "Character %</th></tr></thead><tbody>";
+                "Character %</th><th>Avg. characters per message</th></tr></thead><tbody>";
             $.each(thread.people, function(idx, id){
                 table2html += "<tr><td>" + fbstats.data.people[id].name + "</td><td>" + (person_msg_count[id] || 0)
-                    + "</td><td>" + round_half(100 * (person_msg_count[id] || 0) / thread.messages.length) + "</td><td>" +
-                    (person_char_count[id] || 0) + "</td><td>" + round_half(100 * (person_char_count[id] || 0) / char_count) + "</td></tr>";
+                    + "</td><td>" + round_tenth(100 * (person_msg_count[id] || 0) / thread.messages.length) + "</td><td>" +
+                    (person_char_count[id] || 0) + "</td><td>" + round_tenth(100 * (person_char_count[id] || 0) / char_count) + "</td>" +
+                    "<td>" + (person_msg_count[id] == null ? 0 : round_tenth(person_char_count[id] / person_msg_count[id])) + "</td></tr>";
             });
             table2html += "</tbody>";
             var table2 = $(table2html);
@@ -522,6 +541,97 @@ fbstats.update_statistics = function()
             
             tab_content.append(mlist);
 
+
+            var trends = $('<div class="tab-pane" id="' + thread.id + '_trends"></div>');
+            var metric_radio = $("<div class='btn-group' data-toggle='buttons-radio' style='display:block;'>" +
+                "<button type='button' class='btn active' id='" + thread.id + "mcountbtn'>Message count</button>" +
+                "<button type='button' class='btn' id='" + thread.id + "ccbtn'>Character count</button>" +
+                "<button type='button' class='btn' id='" + thread.id + "acmbtn'>Avg. characters per message</button></div>");
+            
+            trends.append(metric_radio);
+            var trend_chart = $("<div class='chart300' id='" + thread.id + "_trendchart'>");
+            trends.append(trend_chart);
+
+            var first_date = new Date(thread.messages[0].timestamp);
+            first_date.setHours(0, 0, 0, 0);
+
+            var lambda_recreate_chart = function(data_series, t, yax) {
+                // trend_chart.highcharts({
+                //     chart: {
+                //         zoomType: 'x',
+                //         type: 'spline'
+                //     },
+                //     credits: {enabled:false},
+                //     title: {text: t},
+                //     subtitle: {text: 'Click and drag in the plot to zoom in. Click the legend to toggle data.'},
+                //     xAxis: {
+                //         type: 'datetime',
+                //         maxZoom: 24 * 3600000, // 1 day
+                //     },
+                //     yAxis: {
+                //         title: {text: yax}, 
+                //         min: 0
+                //     },
+                //     series: data_series
+
+                // });
+                trend_chart.highcharts({
+                    chart: {
+                        zoomType: 'x',
+                        type: 'line'
+                    },
+                    credits: {enabled:false},
+                    title: {text: t},
+                    subtitle: {text: 'Click and drag in the plot to zoom in. Click the legend to toggle data.'},
+                    xAxis: {
+                        type: 'datetime',
+                        maxZoom: 24 * 3600000, // 1 day
+                    },
+                    yAxis: {
+                        title: {text: yax}, 
+                        startOnTick: false
+                    },
+                    series: data_series,
+                    plotOptions: {
+                        line: {
+                            lineWidth: 2,
+                            marker: {
+                                enabled: false
+                            }
+                        }
+                    }
+                });
+            };
+            // var total_msg_chart_data = {
+            //     name: "Total Messages", 
+            //     data: $.map(message_count_per_day, function(v, k) {
+            //         var kk = k.split(',').map(function(val) { return parseInt(val); });
+            //         return [[new Date(kk[0], kk[1] - 1, kk[2]).getTime(), v]];
+            //     })
+            // };
+            var total_msg_chart_data = {
+                name: "Total Messages", 
+                pointInterval: 24 * 3600 * 1000,
+                pointStart: first_date.getTime(),
+                data: []
+            };
+            var today = new Date();
+            today.setHours(0, 0, 0, 0);
+            while (first_date <= today)
+            {
+                var idx = [first_date.getFullYear(), first_date.getMonth() + 1, first_date.getDate()];
+                total_msg_chart_data.data.push(message_count_per_day[idx] || 0);
+                first_date.setDate(first_date.getDate() + 1);
+            }
+            $(document).on('click', '#' + thread.id + 'mcountbtn', function(evt){
+
+            }).on('click', '#' + thread.id + 'ccbtn', function(evt){
+
+            }).on('click', '#' + thread.id + 'acmbtn', function(evt){
+
+            });
+            tab_content.append(trends);
+
             mainelem.append(tab_content);
 
             // finally, update the page
@@ -558,6 +668,7 @@ fbstats.update_statistics = function()
                 }
             ]
             });
+            lambda_recreate_chart([total_msg_chart_data], "Messages per day", "Messages");
 
             table2.dataTable({
                 bDestroy: true,
@@ -626,7 +737,7 @@ fbstats.update_from_cache = function (success) {
                 }
             }
         } catch (err) {
-            console.log(err);
+            console.log(err.message);
         }
     }, function(err){
         success();
