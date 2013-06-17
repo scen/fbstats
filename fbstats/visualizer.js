@@ -24,6 +24,11 @@ function log_fbapi(url, opts)
     else FB.api(url, opts, lambda);
 }
 
+function is_num(num)
+{
+    return !isNaN(num);
+}
+
 // fbstats object
 
 // stolen from: http://www.netlobo.com/url_query_string_javascript.html
@@ -474,6 +479,7 @@ fbstats.update_from_cache = function (success) {
     $(".main_conversation").remove();
     fbstats.regen_overview_table().fnClearTable();
     fbstats.did_gen_thread = {};
+    fbstats.did_gen_word_cloud = {};
     fbstats.message_count_per_day = {};
     fbstats.message_count_per_day_per_person = {};
     fbstats.character_count_per_day = {};
@@ -507,9 +513,110 @@ fbstats.update_from_cache = function (success) {
     });
 };
 
-fbstats.create_word_cloud = function(tid)
+
+/*
+ * Thanks to http://static.mrfeinberg.com/bv_ch03.pdf for the filters/algorithm/idea
+ */
+ var stopWords = /^(i|me|my|myself|we|us|our|ours|ourselves|you|your|yours|yourself|yourselves|he|him|his|himself|she|her|hers|herself|it|its|itself|they|them|their|theirs|themselves|what|which|who|whom|whose|this|that|these|those|am|is|are|was|were|be|been|being|have|has|had|having|do|does|did|doing|will|would|should|can|could|ought|i'm|you're|he's|she's|it's|we're|they're|i've|you've|we've|they've|i'd|you'd|he'd|she'd|we'd|they'd|i'll|you'll|he'll|she'll|we'll|they'll|isn't|aren't|wasn't|weren't|hasn't|haven't|hadn't|doesn't|don't|didn't|won't|wouldn't|shan't|shouldn't|can't|cannot|couldn't|mustn't|let's|that's|who's|what's|here's|there's|when's|where's|why's|how's|a|an|the|and|but|if|or|because|as|until|while|of|at|by|for|with|about|against|between|into|through|during|before|after|above|below|to|from|up|upon|down|in|out|on|off|over|under|again|further|then|once|here|there|when|where|why|how|all|any|both|each|few|more|most|other|some|such|no|nor|not|only|own|same|so|than|too|very|say|says|said|shall)$/,
+    punctuation = /[!"&()*+,-\.\/:;<=>?\[\\\]^`\{|\}~]+/g,
+    wordSeparators = /[\s\u3031-\u3035\u309b\u309c\u30a0\u30fc\uff70]+/g,
+    discard = /^(@|https?:)/,
+    htmlTags = /(<[^>]*?>|<script.*?<\/script>|<style.*?<\/style>|<head.*?><\/head>)/g;
+
+fbstats.get_words_from_string = function(str)
 {
-    
+    return str.split(wordSeparators).map(function(val){
+        if (discard.test(val)) return null;
+        val = val.replace(punctuation, '');
+        if (stopWords.test(val.toLowerCase())) return null;
+        if (is_num(val)) return null; // todo see if filtering numbers is good
+        return val;
+    }).filter(function(val){return val;});
+}
+
+fbstats.generate_word_cloud = function(tid, opts)
+{
+    var str = "";
+    var thread = fbstats.data.threads[fbstats.tid_to_idx[tid]];
+    $.each(thread.messages, function(idx, val){
+        if (val.body) str += val.body + ' ';
+    });
+    if (opts.downcase)
+    {
+        str = str.toLowerCase(); // todo see if forcing lowercase is good
+    }
+    keys = {};
+    $.each(fbstats.get_words_from_string(str), function(idx, word){
+        keys[word] = (keys[word] || 0) + 1;
+    });
+    keys = d3.entries(keys).sort(function(a, b){return b.value - a.value;});
+
+    keys = keys.slice(0, Math.min(keys.length, 150));
+
+    var get_font_size = d3.scale.linear().range([10, 100]);
+    get_font_size.domain([+keys[keys.length - 1].value || 1, +keys[0].value]);
+    var scale = 1;
+    var svg = d3.select('#x' + tid + '_cloud').append('svg').attr('width', opts.w).attr('height', opts.h);
+    var vis = svg.append('g').attr("transform", "translate(" + [opts.w >> 1, opts.h >> 1] + ")");
+    var on_end = function(data, bounds) {
+        var words;
+        scale = bounds ? Math.min(
+          opts.w / Math.abs(bounds[1].x - opts.w / 2),
+          opts.w / Math.abs(bounds[0].x - opts.w / 2),
+          opts.h / Math.abs(bounds[1].y - opts.h / 2),
+          opts.h / Math.abs(bounds[0].y - opts.h / 2)) / 2 : 1;
+      words = data;
+      var text = vis.selectAll("text")
+          .data(words, function(d) { return d.text.toLowerCase(); });
+      text.transition()
+          .duration(1000)
+          .attr("transform", function(d) { return "translate(" + [d.x, d.y] + ")rotate(" + d.rotate + ")"; })
+          .style("font-size", function(d) { return d.size + "px"; });
+      text.enter().append("text")
+          .attr("text-anchor", "middle")
+          .attr("transform", function(d) { return "translate(" + [d.x, d.y] + ")rotate(" + d.rotate + ")"; })
+          .style("font-size", function(d) { return d.size + "px"; })
+          .on("click", function(d) {
+            load(d.text);
+          })
+          .style("opacity", 1e-6)
+        .transition()
+          .duration(1000)
+          .style("opacity", 1);
+      text.style("font-family", function(d) { return d.font; })
+          .style("fill", function(d) { return fill(d.text.toLowerCase()); })
+          .text(function(d) { return d.text; });
+      vis.transition()
+          .delay(1000)
+          .duration(750)
+          .attr("transform", "translate(" + [w >> 1, h >> 1] + ")scale(" + scale + ")");
+    }
+
+    var fill = d3.scale.category20();
+
+    // var layout = d3.layout.cloud()
+    //     // .timeInterval(10)
+    //     .size([960, 600])
+    //     .fontSize(function(d) {return get_font_size(+d.value);})
+    //     .font("Coolvetica")
+    //     .padding(1)
+    //     .text(function(d) {return d.key;})
+    //     .on('word', function(){console.log("progress");})
+    //     .on('end', on_end)
+    //     .words(keys.slice(0, Math.min(keys.length, 150)))
+    //     .start();
+    console.log(keys.length);
+    var layout = d3.layout.cloud()
+        .size([opts.w, opts.h])
+        .timeInterval(10)
+        .words(keys)
+        .text(function(d) {return d.key;})
+        .rotate(function() { return ~~(Math.random() * 2) * -90; })
+        .font("Coolvetica")
+        .fontSize(function(d) { return get_font_size(+d.value); })
+        .on("end", on_end)
+        .on('word', function(n){console.log('progress');})
+        .start();
 }
 
 fbstats.generate_trends = function(tid, typeid)
@@ -735,7 +842,7 @@ fbstats.gen_thread = function(tid)
         tabs.append($("<li class='active'><a data-toggle='tab' href='#" + thread.id + "_home'>Home</a></li>"));
         tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-toggle='tab' href='#" + thread.id + "_mlist'>Message list</a></li>"));
         tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-tab-type='trends' data-toggle='tab' href='#" + thread.id + "_trends'>Trends over time</a></li>"));
-        tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-toggle='tab' href='#" + thread.id + "_words'>Word cloud</a></li>"));
+        tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-tab-type='cloud' data-toggle='tab' href='#x" + thread.id + "_cloud'>Word cloud</a></li>"));
         tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-toggle='tab' href='#" + thread.id + "_active'>Most active</a></li>"));
         mainelem.append(tabs);
 
@@ -844,6 +951,9 @@ fbstats.gen_thread = function(tid)
         var trend_chart = $("<div class='chartfull' id='" + thread.id + "_trendchart'>");
         trends.append(trend_chart);
         tab_content.append(trends);
+
+        var cloud_tab = $('<div class="tab-pane" id="x' + thread.id + '_cloud"></div>');
+        tab_content.append(cloud_tab);
 
         mainelem.append(tab_content);
 
@@ -1182,7 +1292,6 @@ fbstats.init = function () {
         }
     });
 
-
     $(window).hashchange(function(){
         fbstats.sim_click($('#' + location.hash.slice(1)));
     });
@@ -1194,13 +1303,26 @@ fbstats.init = function () {
 
     $(document).on('click', '.thread_tab', function(evt){
         var tgt = $(evt.target);
-        if (tgt.attr('data-tab-type') == 'trends')
+        var tab_type = tgt.attr('data-tab-type');
+        var id = tgt.attr('data-tid');
+        if (tab_type == 'trends')
         {
-            var id = tgt.attr('data-tid');
             if (fbstats.did_gen_trends[id] == null)
             {
                 fbstats.generate_trends(id);
                 fbstats.did_gen_trends[id] = true;
+            }
+        }
+        else if (tab_type == 'cloud')
+        {
+            if (fbstats.did_gen_word_cloud[id] == null)
+            {
+                fbstats.generate_word_cloud(id, {
+                    downcase: true,
+                    w: 960,
+                    h: 600
+                });
+                fbstats.did_gen_word_cloud[id] = true;
             }
         }
     });

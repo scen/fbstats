@@ -40,3 +40,8 @@
 	width: 95%;
 	margin: 0 auto;
 }
+
+@font-face {
+	font-family: 'Coolvetica';
+	src: url(font/coolvetica.ttf);
+}
