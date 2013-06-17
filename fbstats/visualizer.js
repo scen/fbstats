@@ -507,6 +507,11 @@ fbstats.update_from_cache = function (success) {
     });
 };
 
+fbstats.create_word_cloud = function(tid)
+{
+    
+}
+
 fbstats.generate_trends = function(tid, typeid)
 {
     typeid = typeid || "message";
@@ -730,8 +735,8 @@ fbstats.gen_thread = function(tid)
         tabs.append($("<li class='active'><a data-toggle='tab' href='#" + thread.id + "_home'>Home</a></li>"));
         tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-toggle='tab' href='#" + thread.id + "_mlist'>Message list</a></li>"));
         tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-tab-type='trends' data-toggle='tab' href='#" + thread.id + "_trends'>Trends over time</a></li>"));
+        tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-toggle='tab' href='#" + thread.id + "_words'>Word cloud</a></li>"));
         tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-toggle='tab' href='#" + thread.id + "_active'>Most active</a></li>"));
-        tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-toggle='tab' href='#" + thread.id + "_words'>Popular words</a></li>"));
         mainelem.append(tabs);
 
         // populate tab content
