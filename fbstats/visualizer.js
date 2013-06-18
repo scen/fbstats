@@ -542,6 +542,12 @@ fbstats.generate_word_cloud = function (tid, opts) {
 
     tags = tags.slice(0, Math.min(tags.length, opts.max_words));
 
+    $.each(tags, function(idx, val){
+        tags[idx].idx = idx;
+    });
+
+    var len = tags.length;
+
     var fill = d3.scale.category20c();
 
     var svg = d3.select(elem_id).append('svg').attr('width', opts.w).attr('height', opts.h);
@@ -617,10 +623,10 @@ fbstats.generate_word_cloud = function (tid, opts) {
             .attr("transform", "translate(" + [opts.w >> 1, opts.h >> 1] + ")scale(" + scale + ")");
     };
 
-    var get_rotation = function() {
-        if (Math.random() <= 0.8) return 0;
+    var get_rotation = function(d) {
+        // top 5% of words have a higher chance of appearing horizontal
+        if (Math.random() <= ((d.idx / len) <= 0.05 ? 0.85 : 0.5)) return 0;
         else return -90;
-        // return ~~(Math.random() * 2) * -90;
     };
 
     var layout = d3.layout.cloud()
@@ -1327,7 +1333,7 @@ fbstats.init = function () {
                     w: 960,
                     h: 600,
                     max_words: 150,
-                    font_face: 'Helvetica'
+                    font_face: 'Coolvetica Rg'
                 });
                 fbstats.did_gen_word_cloud[id] = true;
             }
