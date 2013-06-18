@@ -466,6 +466,7 @@ fbstats.update_from_cache = function (success) {
     fbstats.regen_overview_table().fnClearTable();
     fbstats.did_gen_thread = {};
     fbstats.did_gen_word_cloud = {};
+    fbstats.did_gen_active_graph = {};
     fbstats.message_count_per_day = {};
     fbstats.message_count_per_day_per_person = {};
     fbstats.character_count_per_day = {};
@@ -520,6 +521,109 @@ fbstats.get_words_from_string = function (str) {
         return val;
     });
 }
+
+fbstats.generate_active_graph = function(tid, step_interval_minutes, name) {
+    buckets = {};
+    var thread = fbstats.data.threads[fbstats.tid_to_idx[tid]];
+    $.each(thread.messages, function(idx, msg){
+        var ts = new Date(msg.timestamp);
+        var minutes = 60 * ts.getHours() + ts.getMinutes();
+        var bucketidx = ~~(minutes / step_interval_minutes);
+        buckets[msg.from] = buckets[msg.from] || {};
+        buckets[msg.from][bucketidx] = (buckets[msg.from][bucketidx] || 0) + 1;
+    });
+    var bucket_count = ~~Math.ceil(24 * 60 / step_interval_minutes); // 24 hours
+
+    var data = [];
+    var step_interval_ms = step_interval_minutes * 60000;
+
+    var today_date = Date.UTC(2013, 5, 2); // any date is fine
+
+    $.each(thread.people, function(idx, person){
+        var curdata = {
+            name: fbstats.data.people[person].name,
+            pointInterval: step_interval_ms,
+            pointStart: today_date
+        };
+        if (buckets[person] != null)
+        {
+            for (var i = 0; i < bucket_count; i++) 
+                buckets[person][i] = buckets[person][i] || 0;
+            curdata.data = $.map(buckets[person], function(v, k) { return v; });
+            data.push(curdata);
+        }
+    });
+
+    var fmt_time = function(d) {
+        var dh = (d.getUTCHours() % 12) || 12;
+        return (dh + ':' + (d.getUTCMinutes() < 10 ? '0' : '') + d.getUTCMinutes() + (d.getUTCHours() >= 12 ? 'pm' : 'am'));
+    };
+
+    $('#' + tid + "_activechart").highcharts({
+        chart: {
+            type: 'column',
+            zoomType: 'x'
+        },
+        title: {
+            text: 'Most active time per ' + name
+        },
+        subtitle: {
+            text: "Zoom by clicking and dragging inside the graph."
+        },
+        credits: {enabled: false},
+        xAxis: {
+            title: {text: 'Time'},
+            type: 'datetime',
+            dateTimeLabelFormats: { // don't display the dummy year
+                day : '%l:%M %p',
+                hour : '%l:%M %p',
+                minute : '%l:%M %p'
+            },
+            tickInterval: step_interval_ms,
+            labels: {
+                rotation: -90,
+                align: 'right',
+                style: {
+                    fontSize: '10px',
+                }
+            }
+        },
+        yAxis: {
+            min: 0,
+            title: {
+                text: 'Messages'
+            },
+            stackLabels: {
+                enabled: true,
+                style: {
+                    fontWeight: 'bold',
+                    color: (Highcharts.theme && Highcharts.theme.textColor) || 'gray'
+                }
+            }
+        },
+        tooltip: {
+            formatter: function() {
+                var d = new Date(this.x);
+                var nd = new Date(d.getTime() + step_interval_ms);
+                console.log(this.x);
+                return '<b>'+ fmt_time(d) + ' to ' + fmt_time(nd) + '</b><br/>'+
+                    this.series.name +': '+ this.y +'<br/>'+
+                    'Total: '+ this.point.stackTotal;
+            }
+        },
+        plotOptions: {
+            column: {
+                stacking: 'normal',
+                dataLabels: {
+                    enabled: true,
+                    color: (Highcharts.theme && Highcharts.theme.dataLabelsColor) || 'white'
+                },
+            }
+        },
+        series: data
+    });
+
+};
 
 fbstats.generate_word_cloud = function (tid, opts) {
     var str = "";
@@ -865,7 +969,7 @@ fbstats.gen_thread = function (tid) {
         tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-toggle='tab' href='#" + thread.id + "_mlist'>Message list</a></li>"));
         tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-tab-type='trends' data-toggle='tab' href='#" + thread.id + "_trends'>Trends over time</a></li>"));
         tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-tab-type='cloud' data-toggle='tab' href='#x" + thread.id + "_cloud'>Word cloud</a></li>"));
-        tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-toggle='tab' href='#" + thread.id + "_active'>Most active</a></li>"));
+        tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-tab-type='active' data-toggle='tab' href='#" + thread.id + "_active'>Most active time</a></li>"));
         mainelem.append(tabs);
 
         // populate tab content
@@ -979,6 +1083,18 @@ fbstats.gen_thread = function (tid) {
 
         var cloud_tab = $('<div class="tab-pane" id="x' + thread.id + '_cloud"></div>');
         tab_content.append(cloud_tab);
+
+        var active_tab = $('<div class="tab-pane" id="' + thread.id + '_active"></div>');
+
+        var active_select_id = tid + '_active_select';
+
+        var active_form = $('<form class="form"><label for="'+active_select_id+'">Time step: </label><select class="active-select" data-tid="' + thread.id + '" id="' + 
+            active_select_id + '" name="' + active_select_id + '"><option value="15">15 min</option><option value="30">30 min</option><option value="60" selected="selected">1 hr</option><option value="120">2 hr</option>' +
+            '<option value="360">6 hr</option><option value="720">12 hr</option></select></form>');
+        active_tab.append(active_form);
+        var active_chart = $("<div class='chartfull' id='" + thread.id + "_activechart'>");
+        active_tab.append(active_chart);
+        tab_content.append(active_tab);
 
         mainelem.append(tab_content);
 
@@ -1337,7 +1453,22 @@ fbstats.init = function () {
                 });
                 fbstats.did_gen_word_cloud[id] = true;
             }
+        } else if (tab_type == 'active')
+        {
+            if (fbstats.did_gen_active_graph[id] == null)
+            {
+                fbstats.generate_active_graph(id, 60, '1 hr'); // default bucket size: 1 hour
+                fbstats.did_gen_active_graph[id] = true;
+            }
         }
+    });
+
+    $(document).on('click', '.active-select', function(evt){
+        var tgt = $(evt.target);
+        var id = tgt.attr('data-tid');
+        var ts = tgt.find('option:selected').html();
+        var tsmin = tgt.val();
+        fbstats.generate_active_graph(id, tsmin, ts); // default bucket size: 1 hour
     });
 
     $(document).on('click', '.overview_table_row', function (evt) {
