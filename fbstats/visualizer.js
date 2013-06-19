@@ -15,6 +15,18 @@ function round_tenth(num) {
     return parseFloat((Math.round(num * 10) / 10).toFixed(1));
 }
 
+// escapes an element id for use with jquery
+function esc(str)
+{
+    if (str) return str.replace(/([ #;?%&,.+*~\':"!^$[\]()=>|\/@])/g,'\\$1');
+    else return str;
+}
+
+function fixid(str)
+{
+    return str.replace(/[:.]/g, '');
+}
+
 function log_fbapi(url, opts) {
     var lambda = function (obj) {
         console.log(obj);
@@ -295,7 +307,7 @@ fbstats.update_nav = function () {
                 return fbstats.data.people[id].name;
             }).join(", ");
             var and_names_without_me = except_me.slice(0, except_me.length).join(', ') + (except_me.length <= 1 ? '' : ' and ' + except_me[except_me.length - 1]);
-            var elem = $("<li class='navbar_conversation'><a href='#' id='" + thread.id + "' class='navbar_entry'>" + names_without_me + "</a></li>");
+            var elem = $("<li class='navbar_conversation' data-tid='" +thread.id+"'><a href='#' id='" + fixid(thread.id) + "' class='navbar_entry'>" + names_without_me + "</a></li>");
             $("#sidenav").append(elem);
 
             // populate overview table
@@ -446,7 +458,7 @@ fbstats.generate_active_graph = function(tid, step_interval_minutes, name) {
         return (dh + ':' + (d.getUTCMinutes() < 10 ? '0' : '') + d.getUTCMinutes() + (d.getUTCHours() >= 12 ? 'pm' : 'am'));
     };
 
-    $('#' + tid + "_activechart").highcharts({
+    $('#' + fixid(tid) + "_activechart").highcharts({
         chart: {
             type: 'column',
             zoomType: 'x'
@@ -514,7 +526,7 @@ fbstats.generate_active_graph = function(tid, step_interval_minutes, name) {
 
 fbstats.generate_word_cloud = function (tid, opts) {
     var str = "";
-    var elem_id = '#x' + tid + '_cloud';
+    var elem_id = '#x' + fixid(tid) + '_cloud';
     var thread = fbstats.data.threads[fbstats.tid_to_idx[tid]];
     $.each(thread.messages, function (idx, val) {
         if (val.body) str += val.body + ' ';
@@ -641,9 +653,9 @@ fbstats.generate_word_cloud = function (tid, opts) {
 fbstats.generate_trends = function (tid, typeid) {
     typeid = typeid || "message";
     var thread = fbstats.data.threads[fbstats.tid_to_idx[tid]];
-    var trends = $('#' + tid + "_trends");
+    var trends = $('#' + fixid(tid) + "_trends");
 
-    var trend_chart = $('#' + tid + '_trendchart');
+    var trend_chart = $('#' + fixid(tid) + '_trendchart');
 
     var lambda_recreate_chart = function (data_series, t, yax) {
         trend_chart.highcharts({
@@ -846,22 +858,22 @@ fbstats.gen_thread = function (tid) {
             return fbstats.data.people[id].name;
         }).join(", ");
         var and_names_without_me = except_me.slice(0, except_me.length).join(', ') + (except_me.length <= 1 ? '' : ' and ' + except_me[except_me.length - 1]);
-        var mainelem = $("<div id='" + thread.id + "_content' class='main_conversation'><h3>Conversation with " + and_names_without_me + "</h3><hr></div>");
+        var mainelem = $("<div id='" + fixid(thread.id) + "_content' class='main_conversation'><h3>Conversation with " + and_names_without_me + "</h3><hr></div>");
 
         var last_mod = new Date(thread.updated_time);
 
         // populate tabbing system
         var tabs = $("<ul class='nav nav-tabs'>");
-        tabs.append($("<li class='active'><a data-toggle='tab' href='#" + thread.id + "_home'>Home</a></li>"));
-        tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-toggle='tab' href='#" + thread.id + "_mlist'>Message list</a></li>"));
-        tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-tab-type='trends' data-toggle='tab' href='#" + thread.id + "_trends'>Trends over time</a></li>"));
-        tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-tab-type='cloud' data-toggle='tab' href='#x" + thread.id + "_cloud'>Word cloud</a></li>"));
-        tabs.append($("<li><a class='thread_tab' data-tid='" + thread.id + "' data-tab-type='active' data-toggle='tab' href='#" + thread.id + "_active'>Most active time</a></li>"));
+        tabs.append($("<li class='active'><a class='thread_tab' data-tid='" + thread.id + "' data-toggle='tab' href='#" + fixid(thread.id) + "_home'>Home</a></li>"));
+        tabs.append($("<li><a class='thread_tab' data-tid='" + (thread.id) + "' data-toggle='tab' href='#" + fixid(thread.id) + "_mlist'>Message list</a></li>"));
+        tabs.append($("<li><a class='thread_tab' data-tid='" + (thread.id) + "' data-tab-type='trends' data-toggle='tab' href='#" + fixid(thread.id) + "_trends'>Trends over time</a></li>"));
+        tabs.append($("<li><a class='thread_tab' data-tid='" + (thread.id) + "' data-tab-type='cloud' data-toggle='tab' href='#x" + fixid(thread.id) + "_cloud'>Word cloud</a></li>"));
+        tabs.append($("<li><a class='thread_tab' data-tid='" + (thread.id) + "' data-tab-type='active' data-toggle='tab' href='#" + fixid(thread.id) + "_active'>Most active time</a></li>"));
         mainelem.append(tabs);
 
         // populate tab content
         var tab_content = $("<div class='tab-content'>");
-        var home = $('<div class="tab-pane active" id="' + thread.id + '_home"></div>');
+        var home = $('<div class="tab-pane active" id="' + fixid(thread.id) + '_home"></div>');
         home.append("<h4>Aggregate statistics</h4>");
         var table1 = $("<table class='table table-striped table-hover'><thead>" +
             "<tr><th>Last action</th><th>Total messages sent</th><th>Total characters sent</th></thead>" +
@@ -882,8 +894,8 @@ fbstats.gen_thread = function (tid) {
         var table2 = $(table2html);
 
         home.append(table2);
-        var msg_pichart = $("<div class='chart300' id='" + thread.id + "_msgpichart'>");
-        var char_pichart = $("<div class='chart300' id='" + thread.id + "_charpichart'>");
+        var msg_pichart = $("<div class='chart300' id='" + fixid(thread.id) + "_msgpichart'>");
+        var char_pichart = $("<div class='chart300' id='" + fixid(thread.id) + "_charpichart'>");
         home.append(msg_pichart);
         home.append(char_pichart);
         console.log(fbstats.person_msg_count[tid]);
@@ -947,7 +959,7 @@ fbstats.gen_thread = function (tid) {
         });
         tab_content.append(home);
 
-        var mlist = $('<div class="tab-pane" id="' + thread.id + '_mlist"></div>');
+        var mlist = $('<div class="tab-pane" id="' + fixid(thread.id) + '_mlist"></div>');
         mlist.append("<h4>Messages</h4>");
         var emtable = $(mtable);
 
@@ -957,29 +969,29 @@ fbstats.gen_thread = function (tid) {
 
         // trends tab -> we delay the generation until the tab is clicked
         // so the javascript can calculate the width/height after it becomes visible
-        var trends = $('<div class="tab-pane" id="' + thread.id + '_trends"></div>');
+        var trends = $('<div class="tab-pane" id="' + fixid(thread.id) + '_trends"></div>');
         var metric_radio = $("<div class='btn-group' data-toggle='buttons-radio' style='display:block;'>" +
-            "<button data-tid='" + thread.id + "' data-metric='message' type='button' class='metric_button active btn' id='" + thread.id + "mcbtn'>Message count only</button>" +
-            "<button data-tid='" + thread.id + "' data-metric='character' type='button' class='metric_button btn' id='" + thread.id + "ccbtn'>Character count only</button>" +
-            "<button data-tid='" + thread.id + "' data-metric='both' type='button' class='metric_button btn' id='" + thread.id + "mcbtn'>Msg. and char. count</button></div>");
+            "<button data-tid='" + (thread.id) + "' data-metric='message' type='button' class='metric_button active btn' id='" + fixid(thread.id) + "mcbtn'>Message count only</button>" +
+            "<button data-tid='" + (thread.id) + "' data-metric='character' type='button' class='metric_button btn' id='" + fixid(thread.id) + "ccbtn'>Character count only</button>" +
+            "<button data-tid='" + (thread.id) + "' data-metric='both' type='button' class='metric_button btn' id='" + fixid(thread.id) + "mcbtn'>Msg. and char. count</button></div>");
         $(metric_radio).button();
         trends.append(metric_radio);
-        var trend_chart = $("<div class='chartfull' id='" + thread.id + "_trendchart'>");
+        var trend_chart = $("<div class='chartfull' id='" + fixid(thread.id) + "_trendchart'>");
         trends.append(trend_chart);
         tab_content.append(trends);
 
-        var cloud_tab = $('<div class="tab-pane" id="x' + thread.id + '_cloud"></div>');
+        var cloud_tab = $('<div class="tab-pane" id="x' + fixid(thread.id) + '_cloud"></div>');
         tab_content.append(cloud_tab);
 
-        var active_tab = $('<div class="tab-pane" id="' + thread.id + '_active"></div>');
+        var active_tab = $('<div class="tab-pane" id="' + fixid(thread.id) + '_active"></div>');
 
         var active_select_id = tid + '_active_select';
 
-        var active_form = $('<form class="form"><label for="'+active_select_id+'">Time step: </label><select class="active-select" data-tid="' + thread.id + '" id="' + 
+        var active_form = $('<form class="form"><label for="'+active_select_id+'">Time step: </label><select class="active-select" data-tid="' + (thread.id) + '" id="' + 
             active_select_id + '" name="' + active_select_id + '"><option value="15">15 min</option><option value="30">30 min</option><option value="60" selected="selected">1 hr</option><option value="120">2 hr</option>' +
             '<option value="360">6 hr</option><option value="720">12 hr</option></select></form>');
         active_tab.append(active_form);
-        var active_chart = $("<div class='chartfull' id='" + thread.id + "_activechart'>");
+        var active_chart = $("<div class='chartfull' id='" + fixid(thread.id) + "_activechart'>");
         active_tab.append(active_chart);
         tab_content.append(active_tab);
 
@@ -1041,7 +1053,7 @@ fbstats.sim_click = function (obj) {
         $(obj).parent().removeClass("active");
     });
     if ($(obj).parent().hasClass("navbar_conversation")) {
-        var id = $(obj).attr('id');
+        var id = $(obj).parent().attr('data-tid');
         if (fbstats.did_gen_thread[id] == null) {
             fbstats.gen_thread(id);
             fbstats.did_gen_thread[id] = true;
@@ -1373,7 +1385,7 @@ fbstats.init = function () {
     $(document).on('click', '.overview_table_row', function (evt) {
         var id = $(evt.target).parent().attr('data-id');
         if (id == null) return false;
-        fbstats.sim_click($('#' + id));
+        fbstats.sim_click($('#' + esc(id)));
     });
 
     $(document).on('click', '.metric_button', function (evt) {
