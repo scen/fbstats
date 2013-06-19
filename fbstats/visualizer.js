@@ -1,6 +1,7 @@
 APP_ID = '167939483377379';
 
 var fbstats = fbstats || {};
+fbstats.data_downloader = fbstats.data_downloader || {};
 fbstats.fs_bytes = 30 * 1024 * 1024; // 30 MB
 API_CALL_DELAY = 2100; // ms
 API_TIMEOUT_DELAY = 1000 * 60 * 5; // 5 minutes
@@ -45,8 +46,29 @@ fbstats.update_alert = function (type, html) {
     $("#top_notification").html(html);
 };
 
-fbstats.check_cache = function () {
+fbstats.data_downloader.done = function() {
+    fbstats.set_progress_bar(1.0);
+    fbstats.print_download_console("Done!");
+    $("#retrieve_btn").button('reset');
+    fbstats.data.timestamp = (new Date()).toISOString();
+    var str = JSON.stringify(fbstats.data);
+    console.log(str);
 
+    var lambda = function (arg) {
+        // should execute regardless of deletion status
+        fbstats.create_file(fbstats.me.id, function (file_entry) {
+            file_entry.createWriter(function (file_writer) {
+                file_writer.write(new Blob([str], {
+                    type: "text/plain"
+                }));
+                console.log("wrote data to file");
+                fbstats.blockUI();
+                fbstats.update_from_cache();
+            }, fbstats.fs_error_handler);
+        });
+    };
+
+    fbstats.delete_file(fbstats.me.id, lambda, lambda);
 };
 
 fbstats.is_api_error = function (obj) {
@@ -259,6 +281,58 @@ fbstats.get_thread_part2 = function (thread, idx, len, data) {
     }
 };
 
+fbstats.get_thread_messages_helper = function(thread, idx, len, data) {
+    $.ajax({
+        url: data.paging.next,
+        dataType: "json",
+        success: function (d) {
+            if (fbstats.is_api_timeout_error(d)) {
+                fbstats.print_download_console(API_TIMEOUT_MESSAGE);
+                setTimeout(function () {
+                    fbstats.get_thread_messages_helper(thread, idx, len, d);
+                }, API_TIMEOUT_DELAY);
+            } else {
+                fbstats.get_thread_messages(thread, idx, len, d);
+            }
+        }
+    });
+};
+
+fbstats.get_thread_messages = function(thread, idx, len, data) {
+    console.assert(data != null);
+    console.assert(data.data != null);
+    if (data == null || data.data == null)
+    {
+    }
+    if (data.data.length == 0)
+    {
+        // reached the end of this thread
+        console.log("reached end");
+        return;
+    }
+    fbstats.print_download_console("Received " + data.data.length + ' messages');
+
+    $.each(data.data, function(idx, msg){
+        console.assert(msg.from != null);
+        console.assert(msg.to != null);
+        console.assert(msg.message != null);
+        cur_message = {};
+        cur_message.created_time = msg.created_time;
+        cur_message.id = msg.id;
+        cur_message.tags = msg.tags.data;
+        cur_message.from = msg.from.id;
+        cur_message.body = msg.message;
+        cur_message.to = $.map(msg.to.data, function(v, k) { return v.id; });
+        console.log(cur_message);
+        thread.messages.splice(0, 0, cur_message);
+    });
+
+    call_delay(function() {
+        fbstats.get_thread_messages_helper(thread, idx, len, data);
+    });
+};
+
+
 fbstats.get_thread = function (thread, idx, len) {
     thread.messages = [];
     FB.api('/' + thread.id, {
@@ -266,6 +340,8 @@ fbstats.get_thread = function (thread, idx, len) {
     }, function (data) {
         // some parts are null
         // or if it's an event.
+        // I don't think this is necessary anymore; kept for posterity
+        /*
         if (data == null || data.from == null || (data.from != null && data.from.end_time != null)) {
             thread.bad = true; // indicates whether or not this thread should be processed. bad = insufficient information
             fbstats.print_download_console("Thread " + (idx + 1) + " of " + len + ": bad thread encountered... skipping");
@@ -274,7 +350,23 @@ fbstats.get_thread = function (thread, idx, len) {
             }); // "continue"
             return;
         }
-        fbstats.get_thread_part2(thread, idx, len, data);
+        */
+        if (fbstats.is_api_timeout_error(data))
+        {
+            fbstats.print_download_console(API_TIMEOUT_MESSAGE);
+            setTimeout(function() {
+                fbstats.get_thread(thread, idx, len);
+            }, API_TIMEOUT_DELAY);
+        }
+        else if (data.messages != null)
+        {
+            fbstats.get_thread_messages(thread, idx, len, data.messages);
+        }
+        else
+        {
+            console.log("data.messages was null");
+            fbstats.print_download_console("error: data.messages was null");
+        }
     });
 };
 
@@ -294,29 +386,7 @@ fbstats.set_progress_bar = function (num) {
 
 fbstats.get_all_threads_helper = function (idx, len) {
     if (idx >= len) {
-        fbstats.set_progress_bar(1.0);
-        fbstats.print_download_console("Done!");
-        $("#retrieve_btn").button('reset');
-        fbstats.data.timestamp = (new Date()).toISOString();
-        var str = JSON.stringify(fbstats.data);
-        console.log(str);
-
-        var lambda = function (arg) {
-            // should execute regardless of deletion status
-            fbstats.create_file(fbstats.me.id, function (file_entry) {
-                file_entry.createWriter(function (file_writer) {
-                    file_writer.write(new Blob([str], {
-                        type: "text/plain"
-                    }));
-                    console.log("wrote data to file");
-                    fbstats.blockUI();
-                    fbstats.update_from_cache();
-                }, fbstats.fs_error_handler);
-            });
-        };
-
-        fbstats.delete_file(fbstats.me.id, lambda, lambda);
-        return;
+        return fbstats.data_downloader.done();
     }
 
     fbstats.set_progress_bar(idx / len);
@@ -330,10 +400,6 @@ fbstats.get_all_threads = function () {
     fbstats.print_download_console("Counted " + fbstats.data.threads.length + " total threads");
 
     fbstats.get_all_threads_helper(0, fbstats.data.threads.length);
-
-    // $.each(fbstats.data.threads, function(idx, thread){
-    //     fbstats.get_thread(thread);
-    // });
 };
 
 fbstats.process_thread_list_recurse = function (partial_list) {
@@ -364,10 +430,28 @@ fbstats.process_thread_list = function (partial_list) {
         current_thread.people = [];
         current_thread.id = thread.id;
         current_thread.updated_time = thread.updated_time;
-        $.each(thread.to.data, function (idx, person) {
-            current_thread.people.push(person.id);
-            if (fbstats.data.people[person.id] == null) fbstats.data.people[person.id] = {};
-            if (fbstats.data.people[person.id].name == null) fbstats.data.people[person.id].name = person.name;
+        current_thread.can_reply = thread.can_reply;
+        current_thread.is_subscribed = thread.is_subscribed;
+        current_thread.link = thread.link;
+        current_thread.message_count = thread.message_count;
+        current_thread.snippet = thread.snippet;
+        current_thread.tags = thread.tags.data;
+
+        thread_people = [];
+        $.merge(thread_people, thread.participants ? (thread.participants.data || []) : []);
+        $.merge(thread_people, thread.former_participants ? (thread.former_participants.data || []) : []);
+        $.merge(thread_people, thread.senders ? (thread.senders.data || []) : []);
+
+        already_pushed = {};
+        $.each(thread_people, function (idx, person) {
+            if (already_pushed[person.id] == null)
+            {
+                already_pushed[person.id] = true;
+                current_thread.people.push(person.id);
+                fbstats.data.people[person.id] = fbstats.data.people[person.id]  || {};
+                fbstats.data.people[person.id].name = fbstats.data.people[person.id].name || person.name;
+                fbstats.data.people[person.id].email = fbstats.data.people[person.id].email || person.email;
+            }
         });
         fbstats.data.threads.push(current_thread);
     });
@@ -1256,8 +1340,8 @@ fbstats.retrieve_btn_click = function () {
 
     fbstats.print_download_console("Started downloading initial thread list");
 
-    FB.api('/me/inbox', {
-        limit: 500
+    FB.api('/me/threads', {
+        limit: 100
     }, function (inbox) {
         if (fbstats.is_api_timeout_error(inbox)) {
             fbstats.print_download_console(API_TIMEOUT_MESSAGE);
@@ -1482,6 +1566,12 @@ fbstats.init = function () {
         var metric = tgt.attr('data-metric');
         var id = tgt.attr('data-tid');
         fbstats.generate_trends(id, metric);
+    });
+
+    $(document).on('click', '#about_btn', function(evt){
+        bootbox.alert("<h2>fbstats</h2><p>Copyright Stanley Cen 2013</p><p>Released under the MIT license</p><p><a href='https://github.com/scen/fbstats'>GitHub repository</a></p><p><a href='http://stanleycen.com/blog/facebook-messaging-analytics'>Project page</a></p>");
+        evt.preventDefault();
+        evt.stopPropagation();
     });
 
     setTimeout(function () {
