@@ -92,7 +92,7 @@ fbstats.nav_to = function (name) {
         $(obj).hide();
     });
     console.log("#" + name + "_content");
-    $("#" + name + "_content").show();
+    $(document.getElementById(name + "_content")).show();
     // $('#' + name).click(function(evt){
     //     evt.stopPropagation();
     //     evt.preventDefault();
@@ -117,255 +117,55 @@ fbstats.finish_auth = function () {
     }
 };
 
-fbstats.get_thread_helper_part2 = function (data, idx, len) {
-    $.ajax({
-        url: data.paging.next,
-        dataType: "json",
-        success: function (dat) {
-            if (fbstats.is_api_timeout_error(data)) {
-                fbstats.print_download_console(API_TIMEOUT_MESSAGE);
-                setTimeout(function () {
-                    fbstats.get_thread_helper_part2(data, idx, len);
-                }, API_TIMEOUT_DELAY);
-            } else {
-                fbstats.get_thread_helper(dat, idx, len);
-            }
-        }
-    });
-};
 
-fbstats.get_thread_helper = function (data, idx, len) {
-    if (data == null || data.data == null || data.data.length == 0) {
-        console.log("At beginning of chat\n");
-        call_delay(function () {
-            fbstats.get_all_threads_helper(idx + 1, len);
-        });
-        return; // we reached the beginning of the chat
-    }
-
-    console.log(data);
-
-    tbuf = [];
-
-    $.each(data.data, function (idx, msg) {
-        if (msg == null || msg.from == null) {
-            return;
-        }
-        cur_message = {};
-        cur_message.timestamp = msg.created_time;
-        cur_message.from = msg.from.id;
-        cur_message.id = parseInt(msg.id.split("_")[1]);
-        cur_message.body = msg.message || "";
-        console.log(cur_message);
-        tbuf.push(cur_message);
-    });
-
-    $(tbuf.reverse()).each(function (i, msg) {
-        fbstats.data.threads[idx].messages.splice(1, 0, msg);
-    });
-
-    var lerp = 1.0 / len;
-    fbstats.set_progress_bar((idx / len) + (lerp * (fbstats.data.threads[idx].messages.length / fbstats._tmpcnt[idx])));
-
-    fbstats.print_download_console("Received " + (data.data.length) + " messages");
-
-
-    call_delay(function () {
-        fbstats.get_thread_helper_part2(data, idx, len);
-    });
-};
-
-fbstats.get_thread_part4 = function (thread, idx, len, data) {
-    $.ajax({
-        url: data.comments.paging.next,
-        dataType: "json",
-        success: function (data) {
-            if (fbstats.is_api_timeout_error(data)) {
-                fbstats.print_download_console(API_TIMEOUT_MESSAGE);
-                setTimeout(function () {
-                    fbstats.get_thread_part4(thread, idx, len, data);
-                }, API_TIMEOUT_DELAY);
-            } else {
-                fbstats.get_thread_helper(data, idx, len);
-            }
-        }
-    });
-};
-
-fbstats.get_thread_part3 = function (thread, idx, len, data) {
+fbstats.get_thread = function (thread, idx, len, timestamp_offset) {
     FB.api('fql', {
-        q: ('SELECT created_time FROM message WHERE thread_id="' + thread.id + '" LIMIT 1')
-    }, function (response) {
-        if (fbstats.is_api_timeout_error(response)) {
-            fbstats.print_download_console(API_TIMEOUT_MESSAGE);
-            setTimeout(function () {
-                fbstats.get_thread_part3(thread, idx, len, data);
-            }, API_TIMEOUT_DELAY);
-        } else {
-            var the_date = new Date(response.data[0].created_time * 1000); // convert to ms
-            initial_message.timestamp = the_date.toISOString();
-            thread.messages.push(initial_message);
-
-            tbuf = [];
-
-            var cnt = 0;
-
-            if (data != null && data.comments != null && data.comments.data != null) {
-                $.each(data.comments.data, function (idx, msg) {
-                    if (msg == null || msg.from == null) {
-                        return;
-                    }
-                    cur_message = {};
-                    cur_message.timestamp = msg.created_time;
-                    cur_message.from = msg.from.id;
-                    cur_message.id = parseInt(msg.id.split("_")[1]);
-                    var tmp = msg.id.split('_');
-                    if (tmp.length >= 2) {
-                        cnt = parseInt(tmp[1]);
-                    }
-                    cur_message.body = msg.message || "";
-                    console.log(cur_message);
-                    tbuf.push(cur_message);
-                });
-                fbstats._tmpcnt[idx] = cnt;
-
-                $(tbuf.reverse()).each(function (idx, msg) {
-                    thread.messages.splice(1, 0, msg);
-                });
-
-                fbstats.print_download_console("Received " + (data.comments.data.length + 1) + " messages");
-
-                var lerp = 1.0 / len;
-                fbstats.set_progress_bar((idx / len) + (lerp * (thread.messages.length / cnt)));
-
-                call_delay(function () {
-                    fbstats.get_thread_part4(thread, idx, len, data);
-                });
-            } else {
-                console.log("At beginning of chat\n");
-                call_delay(function () {
-                    fbstats.get_all_threads_helper(idx + 1, len);
-                });
-            }
-        }
-
-    });
-};
-
-fbstats.get_thread_part2 = function (thread, idx, len, data) {
-    if (fbstats.is_api_timeout_error(data)) {
-        fbstats.print_download_console(API_TIMEOUT_MESSAGE);
-        setTimeout(function () {
-            fbstats.get_thread_part2(thread, idx, len, data);
-        }, API_TIMEOUT_DELAY);
-    } else {
-        console.log(data);
-        initial_message = {};
-        initial_message.from = data.from.id;
-        initial_message.body = data.message || "";
-        initial_message.id = 0; // message id is THREADID_NUM
-
-        fbstats.print_download_console("Thread " + (idx + 1) + " of " + len + " -> People: " + thread.people.map(function (id) {
-            return fbstats.data.people[id].name;
-        }).join(", "));
-
-        /*
-            So apparently the Facebook Graph API doesn't give you the created_time of the first message.
-            We use FQL to extract this information.
-            Thank this person: http://stackoverflow.com/questions/11762428/read-created-time-of-first-message-in-conversation
-        */
-
-        call_delay(function () {
-            fbstats.get_thread_part3(thread, idx, len, data);
-        });
-    }
-};
-
-fbstats.get_thread_messages_helper = function(thread, idx, len, data) {
-    $.ajax({
-        url: data.paging.next,
-        dataType: "json",
-        success: function (d) {
-            if (fbstats.is_api_timeout_error(d)) {
-                fbstats.print_download_console(API_TIMEOUT_MESSAGE);
-                setTimeout(function () {
-                    fbstats.get_thread_messages_helper(thread, idx, len, d);
-                }, API_TIMEOUT_DELAY);
-            } else {
-                fbstats.get_thread_messages(thread, idx, len, d);
-            }
-        }
-    });
-};
-
-fbstats.get_thread_messages = function(thread, idx, len, data) {
-    console.assert(data != null);
-    console.assert(data.data != null);
-    if (data == null || data.data == null)
-    {
-    }
-    if (data.data.length == 0)
-    {
-        // reached the end of this thread
-        console.log("reached end");
-        return;
-    }
-    fbstats.print_download_console("Received " + data.data.length + ' messages');
-
-    $.each(data.data, function(idx, msg){
-        console.assert(msg.from != null);
-        console.assert(msg.to != null);
-        console.assert(msg.message != null);
-        cur_message = {};
-        cur_message.created_time = msg.created_time;
-        cur_message.id = msg.id;
-        cur_message.tags = msg.tags.data;
-        cur_message.from = msg.from.id;
-        cur_message.body = msg.message;
-        cur_message.to = $.map(msg.to.data, function(v, k) { return v.id; });
-        console.log(cur_message);
-        thread.messages.splice(0, 0, cur_message);
-    });
-
-    call_delay(function() {
-        fbstats.get_thread_messages_helper(thread, idx, len, data);
-    });
-};
-
-
-fbstats.get_thread = function (thread, idx, len) {
-    thread.messages = [];
-    FB.api('/' + thread.id, {
-        limit: 500
-    }, function (data) {
-        // some parts are null
-        // or if it's an event.
-        // I don't think this is necessary anymore; kept for posterity
-        /*
-        if (data == null || data.from == null || (data.from != null && data.from.end_time != null)) {
-            thread.bad = true; // indicates whether or not this thread should be processed. bad = insufficient information
-            fbstats.print_download_console("Thread " + (idx + 1) + " of " + len + ": bad thread encountered... skipping");
-            call_delay(function () {
-                fbstats.get_all_threads_helper(idx + 1, len);
-            }); // "continue"
-            return;
-        }
-        */
+        q: 'SELECT message_id,body,tags,timestamp,message_id,sender,recipients,coordinates FROM unified_message WHERE thread_id="' +
+            thread.id + '" AND timestamp > ' + timestamp_offset + ' LIMIT 500'
+    }, function(data) {
         if (fbstats.is_api_timeout_error(data))
         {
             fbstats.print_download_console(API_TIMEOUT_MESSAGE);
             setTimeout(function() {
-                fbstats.get_thread(thread, idx, len);
+                fbstats.get_thread(thread, idx, len, timestamp_offset);
             }, API_TIMEOUT_DELAY);
         }
-        else if (data.messages != null)
+        else if (data.data == null)
         {
-            fbstats.get_thread_messages(thread, idx, len, data.messages);
+            console.assert(data.data != null);
+        }
+        else if (data.data.length == 0)
+        {
+            fbstats.print_download_console('Done with current thread');
+            console.log("reached end of messages");
+            fbstats.get_all_threads_helper(idx + 1, len);
         }
         else
         {
-            console.log("data.messages was null");
-            fbstats.print_download_console("error: data.messages was null");
+            console.log(data);
+            var last_timestamp = 0;
+            $.each(data.data, function(idx, msg){
+                // todo check for object_sender since that means an event/page/etc sent it
+                console.assert(msg.sender != null);
+                console.assert(msg.recipients != null);
+                console.assert(msg.body != null);
+                cur_message = {};
+                cur_message.timestamp = +msg.timestamp;
+                last_timestamp = +msg.timestamp;
+                cur_message.id = msg.message_id;
+                cur_message.tags = msg.tags;
+                cur_message.from = msg.sender.user_id;
+                cur_message.body = msg.body;
+                cur_message.coordinates = msg.coordinates;
+                cur_message.to = $.map(msg.recipients, function(v, k) { return v.user_id; });
+                console.log(cur_message);
+                thread.messages.push(cur_message);
+            });
+            fbstats.print_download_console("Received " + thread.messages.length + " of " + thread.message_count + " messages");
+            fbstats.set_progress_bar((idx / len) + ((1.0 / len) * (thread.messages.length / (thread.message_count || 100000000000))));
+            call_delay(function() {
+                fbstats.get_thread(thread, idx, len, last_timestamp);
+            });
         }
     });
 };
@@ -390,9 +190,12 @@ fbstats.get_all_threads_helper = function (idx, len) {
     }
 
     fbstats.set_progress_bar(idx / len);
+    fbstats.data.threads[idx].messages = [];
+    fbstats.print_download_console("Downloading messages for thread " + (idx + 1) + " of " + len + ": " + 
+        fbstats.data.threads[idx].people.map(function(n){return fbstats.data.people[n].name;}).join(', '));
 
     call_delay(function () {
-        fbstats.get_thread(fbstats.data.threads[idx], idx, len);
+        fbstats.get_thread(fbstats.data.threads[idx], idx, len, 0);
     });
 };
 
@@ -610,7 +413,7 @@ fbstats.generate_active_graph = function(tid, step_interval_minutes, name) {
     buckets = {};
     var thread = fbstats.data.threads[fbstats.tid_to_idx[tid]];
     $.each(thread.messages, function(idx, msg){
-        var ts = new Date(msg.timestamp);
+        var ts = new Date(+msg.timestamp);
         var minutes = 60 * ts.getHours() + ts.getMinutes();
         var bucketidx = ~~(minutes / step_interval_minutes);
         buckets[msg.from] = buckets[msg.from] || {};
@@ -875,9 +678,9 @@ fbstats.generate_trends = function (tid, typeid) {
         });
     };
 
-    var first_date = new Date(thread.messages[0].timestamp);
+    var first_date = new Date(+thread.messages[0].timestamp);
     first_date.setHours(0, 0, 0, 0);
-    var rfirst_date = new Date(thread.messages[0].timestamp);
+    var rfirst_date = new Date(+thread.messages[0].timestamp);
     rfirst_date.setHours(0, 0, 0, 0);
 
     var total_msg_chart_data = {
@@ -935,7 +738,7 @@ fbstats.generate_trends = function (tid, typeid) {
     all_character_data.push(avg_char_per_day);
     $.each(thread.people, function (idx, id) {
         if (fbstats.person_msg_count[tid][id] > 0) {
-            first_date = new Date(thread.messages[0].timestamp);
+            first_date = new Date(+thread.messages[0].timestamp);
             first_date.setHours(0, 0, 0, 0);
             var temp = {
                 name: "Msgs from " + fbstats.data.people[id].name,
@@ -1002,12 +805,12 @@ fbstats.gen_thread = function (tid) {
         fbstats.person_msg_count[tid] = {};
         $.each(thread.messages, function (idx, msg) {
             try {
-                mtable += "<tr><td>" + msg.id + "</td><td>" + fbstats.data.people[msg.from].name + "</td><td>" +
-                    (new Date(msg.timestamp)).toLocaleString() + "</td><td>" + (msg.body == null ? "" : msg.body) + "</td></tr>";
+                mtable += "<tr><td>" + (idx+1) + "</td><td>" + fbstats.data.people[msg.from].name + "</td><td>" +
+                    (new Date(+msg.timestamp)).toLocaleString() + "</td><td>" + (msg.body == null ? "" : msg.body) + "</td></tr>";
             } catch (err) {
                 console.log(err.message);
             }
-            var dd = new Date(msg.timestamp);
+            var dd = new Date(+msg.timestamp);
             var ds = [dd.getFullYear(), dd.getMonth() + 1, dd.getDate()];
             fbstats.message_count_per_day[tid][ds] = fbstats.message_count_per_day[tid][ds] || 0;
             fbstats.message_count_per_day[tid][ds]++;
@@ -1329,25 +1132,37 @@ fbstats.print_download_console = function (text) {
 
 fbstats.retrieve_btn_click = function () {
     // $("#last_update_settings").html((new Date()).toString());
-    fbstats.set_progress_bar(0);
-    $("#retrieve_btn").button('loading');
-    // initialize data object
-    fbstats.data = {};
-    fbstats.data.threads = [];
-    fbstats.data.people = {};
+    bootbox.confirm("Continuing will clear all of the data from cache and re-download from Facebook. Are you sure?", function (res) {
+        if (res == true) {
+            var lambda = function (arg) {
+                fbstats.set_progress_bar(0);
+                fbstats.print_download_console("Cleared cached data");
+                fbstats.blockUI();
+                fbstats.update_from_cache(function(){
+                    fbstats.set_progress_bar(0);
+                    $("#retrieve_btn").button('loading');
+                    // initialize data object
+                    fbstats.data = {};
+                    fbstats.data.threads = [];
+                    fbstats.data.people = {};
 
-    fbstats._tmpcnt = {};
+                    fbstats._tmpcnt = {};
 
-    fbstats.print_download_console("Started downloading initial thread list");
+                    fbstats.print_download_console("Started downloading initial thread list");
 
-    FB.api('/me/threads', {
-        limit: 100
-    }, function (inbox) {
-        if (fbstats.is_api_timeout_error(inbox)) {
-            fbstats.print_download_console(API_TIMEOUT_MESSAGE);
-            setTimeout(fbstats.retrieve_btn_click, API_TIMEOUT_DELAY);
-        } else {
-            call_delay(fbstats.process_thread_list(inbox));
+                    FB.api('/me/threads', {
+                        limit: 500
+                    }, function (inbox) {
+                        if (fbstats.is_api_timeout_error(inbox)) {
+                            fbstats.print_download_console(API_TIMEOUT_MESSAGE);
+                            setTimeout(fbstats.retrieve_btn_click, API_TIMEOUT_DELAY);
+                        } else {
+                            call_delay(fbstats.process_thread_list(inbox));
+                        }
+                    });
+                });
+            };
+            fbstats.delete_file(fbstats.me.id, lambda, lambda);
         }
     });
 };
@@ -1408,7 +1223,7 @@ fbstats.init = function () {
     });
 
     $("#clear_cache_btn").click(function () {
-        bootbox.confirm("Are you sure you want to clear all of your data from your local cache? (you will have to redownload all of it)", function (res) {
+        bootbox.confirm("Are you sure you want to clear all of your data from your local cache? (you will either have to re-download all of it or upload your own file)", function (res) {
             if (res == true) {
                 var lambda = function (arg) {
                     fbstats.set_progress_bar(0);
@@ -1510,12 +1325,12 @@ fbstats.init = function () {
         fbstats.sim_click($('#' + location.hash.slice(1)));
     });
 
-    $("#delta_update").click(function () {
-        $(this).button('loading');
-        call_delay(function () {
-            $("#delta_update").button('reset');
-        });
-    });
+    // $("#delta_update").click(function () {
+    //     $(this).button('loading');
+    //     call_delay(function () {
+    //         $("#delta_update").button('reset');
+    //     });
+    // });
 
     $(document).on('click', '.thread_tab', function (evt) {
         var tgt = $(evt.target);
@@ -1579,6 +1394,12 @@ fbstats.init = function () {
             window.scrollTo(0, 0);
         }
     }, 1);
+
+    $(".more-info").popover({
+        trigger: 'hover',
+        title: 'More information!',
+        placement: 'bottom'
+    });
 
     (function (d, s, id) {
         var js, fjs = d.getElementsByTagName(s)[0];

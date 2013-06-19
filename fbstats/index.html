@@ -88,31 +88,29 @@
 						</div>
 						<div id="settings_content">
 							<h3>Settings</h3>
+							<p>Hover over the bottoms for more information about each action</p>
 							<hr>
 							<h4>Facebook actions</h4>
 							<div class="btn-group">
-								<a class="btn btn-success" id="delta_update" data-loading-text="Updating...">
-									Delta-update current data from Facebook
-								</a>
-								<a class="btn btn-primary" id="retrieve_btn" data-loading-text="Downloading...">
+								<a class="more-info btn btn-primary" id="retrieve_btn" data-loading-text="Downloading..." data-content="This action will download all of your conversations and messages from Facebook into your browser for analysis. All of your previous data will be cleared, so if you want a backup of your previous data, hit the 'Download collected data to your computer' button! Warning: this may take a couple of minutes">
 									Download all data from Facebook
 								</a>
 							</div>
 							<br>
 							<h4>Other actions</h4>
 							<div class="btn-group">
-								<a class="btn btn-info" id="save_data_local">
+								<a class="more-info btn btn-info" id="save_data_local" data-content="This action allows you to back-up and download a copy of your data to your computer. You can easily load your data again by dragging the file into the labeled box located under me.">
 									Download collected data to your computer
 								</a>
-								<a class="btn btn-danger" id="clear_cache_btn">
+								<a class="more-info btn btn-danger" id="clear_cache_btn" data-content="This action will delete the data that has been downloaded from your temporary files. If you want to keep your data for your own records or as backup, click the button to my left!">
 									Clear cached data
 								</a>
 							</div>
 							<br>
 							<h4>Load data from computer</h4>
-							<p>Drag and drop a previously downloaded file into the box to load up that data</p>
+							<p>Drag and drop a previously downloaded file from your computer into the following box to load up that data</p>
 							<div class="well" id="dropbox">
-								<span>Drag file here</span>
+								<span>Drag file into this box</span>
 							</div>
 							<div class="progress progress-striped active" id="download_progress">
 								<div class="bar" id="progress_bar" style="width: 0%"></div>
