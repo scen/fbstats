@@ -358,6 +358,7 @@ fbstats.regen_overview_table = function () {
 };
 
 fbstats.update_from_cache = function (success) {
+    $('#update_btn').prop('disabled', true);
     fbstats.update_alert('error', '<strong>Error!</strong> Message data has not been collected yet. Go to Settings to collect data.');
     $(".navbar_conversation").remove();
     $("#overview_table > tbody > tr").remove();
@@ -387,6 +388,7 @@ fbstats.update_from_cache = function (success) {
                     fbstats.data = obj;
                     // fbstats.update_statistics();
                     fbstats.update_nav();
+                    $('#update_btn').prop('disabled', false);
                     if (success != null) success();
                 }
             }
@@ -1144,7 +1146,7 @@ fbstats.print_download_console = function (text) {
 
 fbstats.retrieve_btn_click = function () {
     // $("#last_update_settings").html((new Date()).toString());
-    bootbox.confirm("Continuing will clear all of the data from cache and re-download from Facebook. Are you sure?", function (res) {
+    bootbox.confirm("Continuing will clear all of the data from cache and re-download from Facebook. If you have already downloaded data once and the green button is clickable, you should use that since it's much faster. Are you sure?", function (res) {
         if (res == true) {
             var lambda = function (arg) {
                 fbstats.set_progress_bar(0);
@@ -1406,6 +1408,10 @@ fbstats.init = function () {
             window.scrollTo(0, 0);
         }
     }, 1);
+
+    $("#update_btn").click(function(){
+        bootbox.alert("Sorry, not implemented yet");
+    });
 
     $(".more-info").popover({
         trigger: 'hover',
