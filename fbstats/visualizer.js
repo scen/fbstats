@@ -3,7 +3,7 @@ APP_ID = '167939483377379';
 var fbstats = fbstats || {};
 fbstats.data_downloader = fbstats.data_downloader || {};
 fbstats.fs_bytes = 30 * 1024 * 1024; // 30 MB
-API_CALL_DELAY = 2100; // ms
+API_CALL_DELAY = 2000; // ms
 API_TIMEOUT_DELAY = 1000 * 60 * 5; // 5 minutes
 API_TIMEOUT_MESSAGE = "Facebook API timed out. Auto-retrying in 5 minutes";
 
