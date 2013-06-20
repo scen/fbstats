@@ -24,7 +24,7 @@ function esc(str)
 
 function fixid(str)
 {
-    return str.replace(/[:.+]/g, '');
+    return str.replace(/[:.+\/\\\[\]]/g, '');
 }
 
 function log_fbapi(url, opts) {
