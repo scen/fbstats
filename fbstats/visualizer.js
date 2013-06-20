@@ -217,7 +217,7 @@ fbstats.get_all_threads = function () {
     fbstats.get_all_threads_helper(0, fbstats.data.threads.length);
 };
 
-fbstats.process_thread_list_recurse = function (partial_list) {
+fbstats.process_thread_list_recurse = function (partial_list, success_fn) {
     call_delay(function () {
         $.ajax({
             url: partial_list.paging.next,
@@ -229,16 +229,16 @@ fbstats.process_thread_list_recurse = function (partial_list) {
                         fbstats.process_thread_list_recurse(partial_list);
                     }, API_TIMEOUT_DELAY);
                 } else {
-                    fbstats.process_thread_list(data);
+                    fbstats.process_thread_list(data, success_fn);
                 }
             }
         });
     });
 };
 
-fbstats.process_thread_list = function (partial_list) {
+fbstats.process_thread_list = function (partial_list, success_fn) {
     console.log(partial_list);
-    if (partial_list.data.length == 0) return fbstats.get_all_threads(); // no more threads to process
+    if (partial_list.data.length == 0) return success_fn(); // no more threads to process
     fbstats.print_download_console("Received block of " + partial_list.data.length + " threads");
     $.each(partial_list.data, function (idx, thread) {
         current_thread = {};
@@ -270,7 +270,7 @@ fbstats.process_thread_list = function (partial_list) {
         });
         fbstats.data.threads.push(current_thread);
     });
-    fbstats.process_thread_list_recurse(partial_list);
+    fbstats.process_thread_list_recurse(partial_list, success_fn);
 };
 
 fbstats.on_fs_init = function (fs) {
@@ -1171,7 +1171,9 @@ fbstats.retrieve_btn_click = function () {
                             fbstats.print_download_console(API_TIMEOUT_MESSAGE);
                             setTimeout(fbstats.retrieve_btn_click, API_TIMEOUT_DELAY);
                         } else {
-                            call_delay(fbstats.process_thread_list(inbox));
+                            call_delay(function() {
+                                fbstats.process_thread_list(inbox, fbstats.get_all_threads); 
+                            });
                         }
                     });
                 });
