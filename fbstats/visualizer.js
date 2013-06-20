@@ -155,7 +155,7 @@ fbstats.get_thread = function (thread, idx, len, timestamp_offset, helper_fn) {
         }
         else
         {
-            console.log(data);
+            // console.log(data);
             var last_timestamp = 0;
             $.each(data.data, function(idx, msg){
                 // todo check for object_sender since that means an event/page/etc sent it
@@ -171,7 +171,7 @@ fbstats.get_thread = function (thread, idx, len, timestamp_offset, helper_fn) {
                 cur_message.body = msg.body;
                 cur_message.coordinates = msg.coordinates;
                 cur_message.to = $.map(msg.recipients, function(v, k) { return v.user_id; });
-                console.log(cur_message);
+                // console.log(cur_message);
                 thread.messages.push(cur_message);
             });
             fbstats.print_download_console("Received " + thread.messages.length + " of " + thread.message_count + " messages");
