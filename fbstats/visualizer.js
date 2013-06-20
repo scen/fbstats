@@ -62,6 +62,7 @@ fbstats.data_downloader.done = function() {
     fbstats.set_progress_bar(1.0);
     fbstats.print_download_console("Done!");
     $("#retrieve_btn").button('reset');
+    $("#update_btn").button('reset');
     fbstats.data.timestamp = (new Date()).toISOString();
     var str = JSON.stringify(fbstats.data);
     console.log(str);
@@ -130,7 +131,7 @@ fbstats.finish_auth = function () {
 };
 
 
-fbstats.get_thread = function (thread, idx, len, timestamp_offset) {
+fbstats.get_thread = function (thread, idx, len, timestamp_offset, helper_fn) {
     FB.api('fql', {
         q: 'SELECT message_id,body,tags,timestamp,message_id,sender,recipients,coordinates FROM unified_message WHERE thread_id="' +
             thread.id + '" AND timestamp > ' + timestamp_offset + ' LIMIT 500'
@@ -139,7 +140,7 @@ fbstats.get_thread = function (thread, idx, len, timestamp_offset) {
         {
             fbstats.print_download_console(API_TIMEOUT_MESSAGE);
             setTimeout(function() {
-                fbstats.get_thread(thread, idx, len, timestamp_offset);
+                fbstats.get_thread(thread, idx, len, timestamp_offset, helper_fn);
             }, API_TIMEOUT_DELAY);
         }
         else if (data.data == null)
@@ -150,7 +151,7 @@ fbstats.get_thread = function (thread, idx, len, timestamp_offset) {
         {
             fbstats.print_download_console('Done with current thread');
             console.log("reached end of messages");
-            fbstats.get_all_threads_helper(idx + 1, len);
+            helper_fn(idx + 1, len);
         }
         else
         {
@@ -176,7 +177,7 @@ fbstats.get_thread = function (thread, idx, len, timestamp_offset) {
             fbstats.print_download_console("Received " + thread.messages.length + " of " + thread.message_count + " messages");
             fbstats.set_progress_bar((idx / len) + ((1.0 / len) * (thread.messages.length / (thread.message_count || 100000000000))));
             call_delay(function() {
-                fbstats.get_thread(thread, idx, len, last_timestamp);
+                fbstats.get_thread(thread, idx, len, last_timestamp, helper_fn);
             });
         }
     });
@@ -207,7 +208,7 @@ fbstats.get_all_threads_helper = function (idx, len) {
         fbstats.data.threads[idx].people.map(function(n){return fbstats.data.people[n].name;}).join(', '));
 
     call_delay(function () {
-        fbstats.get_thread(fbstats.data.threads[idx], idx, len, 0);
+        fbstats.get_thread(fbstats.data.threads[idx], idx, len, 0, fbstats.get_all_threads_helper);
     });
 };
 
@@ -243,6 +244,7 @@ fbstats.process_thread_list = function (partial_list, success_fn) {
     $.each(partial_list.data, function (idx, thread) {
         current_thread = {};
         current_thread.people = [];
+        current_thread.messages = [];
         current_thread.id = thread.id;
         current_thread.updated_time = thread.updated_time;
         current_thread.can_reply = thread.can_reply;
@@ -1160,8 +1162,6 @@ fbstats.retrieve_btn_click = function () {
                     fbstats.data.threads = [];
                     fbstats.data.people = {};
 
-                    fbstats._tmpcnt = {};
-
                     fbstats.print_download_console("Started downloading initial thread list");
 
                     FB.api('/me/threads', {
@@ -1389,7 +1389,7 @@ fbstats.init = function () {
     $(document).on('click', '.overview_table_row', function (evt) {
         var id = $(evt.target).parent().attr('data-id');
         if (id == null) return false;
-        fbstats.sim_click($('#' + esc(id)));
+        fbstats.sim_click($('#' + fixid(id)));
     });
 
     $(document).on('click', '.metric_button', function (evt) {
@@ -1413,6 +1413,102 @@ fbstats.init = function () {
 
     $("#update_btn").click(function(){
         bootbox.alert("Sorry, not implemented yet");
+        return;
+        bootbox.confirm("Are you sure you want to update your data?", function(res){
+            if (!res) return;
+            var lambda = function (arg) {
+                fbstats.set_progress_bar(0);
+                fbstats.print_download_console("Cleared cached data");
+                fbstats.blockUI();
+                fbstats.update_from_cache(function(){
+                    fbstats.set_progress_bar(0);
+                    $("#update_btn").button('loading');
+
+                    // deep-copy workaround
+                    var _json_str = JSON.stringify(fbstats.data);
+                    fbstats.old_data = JSON.parse(_json_str);
+
+                    // initialize data object
+                    fbstats.data = {};
+                    fbstats.data.threads = [];
+                    fbstats.data.people = {};
+
+                    fbstats.print_download_console("Started downloading initial thread list for update");
+
+                    var on_finish_thread_list = function() {
+                        fbstats.threads_to_update = [];
+                        $.each(fbstats.data.threads, function(idx, new_thread){
+                            var found_thread = false;
+                            var thread_ref, thread_idx;
+                            $.each(fbstats.old_data.threads, function(i, old_thread){
+                                if (found_thread) return;
+                                if (new_thread.id == old_thread.id)
+                                {
+                                    found_thread = true;
+                                    thread_ref = old_thread;
+                                    thread_idx = i;
+                                    return;
+                                }
+                            });
+                            if (!found_thread || thread_ref.updated_time != new_thread.updated_time)
+                            {
+                                fbstats.threads_to_update.push(idx);
+                            }
+                            else if (found_thread)
+                            {
+                                fbstats.print_download_console("No updates found for thread " + (idx + 1) + ": " + 
+                                    new_thread.people.map(function(n){return fbstats.data.people[n].name;}).join(', '));
+                                var _json_str = JSON.stringify(thread_ref);
+                                fbstats.data.threads[idx] = JSON.parse(_json_str);
+                            }
+                        });
+                        // fbstats.get_thread = function (thread, idx, len, timestamp_offset, helper_fn)
+                        if (fbstats.threads_to_update.length > 0)
+                        {
+                            var lambda = function(idx, len){
+                                fbstats.set_progress_bar(idx / len);
+                                if (idx >= len)
+                                {
+                                    // done
+                                    fbstats.old_data = {};
+                                    fbstats.data_downloader.done();
+                                }
+                                call_delay(function() {
+                                    fbstats.print_download_console("Updating thread " + (idx) + " of " + fbstats.threads_to_update.length + ": " + 
+                                        fbstats.data.threads[fbstats.threads_to_update[idx]].people.map(function(n){return fbstats.data.people[n].name;}).join(', '));
+                                    fbstats.get_thread(fbstats.data.threads[fbstats.threads_to_update[idx]], idx, len, 0, lambda);
+                                });
+                            };
+                            fbstats.print_download_console("Found " + fbstats.threads_to_update.length + " threads to update");
+                            fbstats.print_download_console("Updating thread " + (1) + " of " + fbstats.threads_to_update.length + ": " + 
+                                    fbstats.data.threads[fbstats.threads_to_update[0]].people.map(function(n){return fbstats.data.people[n].name;}).join(', '));
+                            fbstats.get_thread(fbstats.data.threads[fbstats.threads_to_update[0]], 0, fbstats.threads_to_update.length, 0, lambda);
+                        }
+                        else
+                        {
+                            // done
+                            fbstats.old_data = {};
+                            console.log(fbstats.data);
+                            fbstats.data_downloader.done();
+                        }
+                    };
+
+                    FB.api('/me/threads', {
+                        limit: 500
+                    }, function (inbox) {
+                        if (fbstats.is_api_timeout_error(inbox)) {
+                            fbstats.print_download_console(API_TIMEOUT_MESSAGE);
+                            setTimeout(fbstats.retrieve_btn_click, API_TIMEOUT_DELAY);
+                        } else {
+                            call_delay(function() {
+                                fbstats.process_thread_list(inbox, on_finish_thread_list); 
+                            });
+                        }
+                    });
+                });
+            };
+            fbstats.delete_file(fbstats.me.id, lambda, lambda);
+        });
     });
 
     $(".more-info").popover({
