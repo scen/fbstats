@@ -742,7 +742,7 @@ fbstats.generate_trends = function (tid, typeid) {
         cur_character_count += charcnt;
         cur_message_count += cnt;
         total_msg_chart_data.data.push(cnt);
-        total_char_chart_data.data.push(cnt);
+        total_char_chart_data.data.push(charcnt);
         first_date.setDate(first_date.getDate() + 1);
         elapsed_days++;
         avg_msg_per_day.data.push(cur_message_count / elapsed_days);
@@ -839,8 +839,7 @@ fbstats.gen_thread = function (tid) {
                 char_count += len;
                 fbstats.person_char_count[tid][msg.from] = fbstats.person_char_count[tid][msg.from] == null ? len : fbstats.person_char_count[tid][msg.from] +
                     len;
-                fbstats.character_count_per_day[tid][ds] = fbstats.character_count_per_day[tid][ds] || 0;
-                fbstats.character_count_per_day[tid][ds] += len;
+                fbstats.character_count_per_day[tid][ds] = (fbstats.character_count_per_day[tid][ds] || 0) + len;
                 fbstats.character_count_per_day_per_person[tid][ds] = fbstats.character_count_per_day_per_person[tid][ds] || {};
                 fbstats.character_count_per_day_per_person[tid][ds][msg.from] = fbstats.character_count_per_day_per_person[tid][ds][msg.from] || 0;
                 fbstats.character_count_per_day_per_person[tid][ds][msg.from] += len;
