@@ -383,7 +383,7 @@ fbstats.update_from_cache = function (success) {
             if (obj != null) {
                 if (obj.timestamp != null && obj.threads != null && obj.people != null) {
                     var data_date = new Date(obj.timestamp);
-                    fbstats.update_alert('success', 'Using data last updated on <strong>' + data_date.toString() + '</strong>');
+                    fbstats.update_alert('success', 'Using data last updated on <strong>' + data_date.toString() + '</strong>. Go to settings to <em>update</em> the data.');
                     var e = $("#save_data_local");
                     e.attr("download", fbstats.me.first_name + fbstats.me.last_name + "_" + fbstats.me.id + ".txt");
                     e.attr("href", file_entry.toURL());
@@ -1411,8 +1411,6 @@ fbstats.init = function () {
     }, 1);
 
     $("#update_btn").click(function(){
-        bootbox.alert("Sorry, not implemented yet");
-        return;
         bootbox.confirm("Are you sure you want to update your data?", function(res){
             if (!res) return;
             var lambda = function (arg) {
@@ -1473,7 +1471,7 @@ fbstats.init = function () {
                                     fbstats.data_downloader.done();
                                 }
                                 call_delay(function() {
-                                    fbstats.print_download_console("Updating thread " + (idx) + " of " + fbstats.threads_to_update.length + ": " + 
+                                    fbstats.print_download_console("Updating thread " + (idx + 1) + " of " + fbstats.threads_to_update.length + ": " + 
                                         fbstats.data.threads[fbstats.threads_to_update[idx]].people.map(function(n){return fbstats.data.people[n].name;}).join(', '));
                                     fbstats.get_thread(fbstats.data.threads[fbstats.threads_to_update[idx]], idx, len, 0, lambda);
                                 });
