@@ -39,6 +39,31 @@ function is_num(num) {
     return !isNaN(num);
 }
 
+// http://stackoverflow.com/questions/201183/how-do-you-determine-equality-for-two-javascript-objects
+function obj_equals(x, y) {
+    // if both are function
+    if (x instanceof Function) {
+        if (y instanceof Function) {
+            return x.toString() === y.toString();
+        }
+        return false;
+    }
+    if (x === null || x === undefined || y === null || y === undefined) { return x === y; }
+    if (x === y || x.valueOf() === y.valueOf()) { return true; }
+
+    // if one of them is date, they must had equal valueOf
+    if (x instanceof Date) { return false; }
+    if (y instanceof Date) { return false; }
+
+    // if they are not function or strictly equal, they both need to be Objects
+    if (!(x instanceof Object)) { return false; }
+    if (!(y instanceof Object)) { return false; }
+
+    var p = Object.keys(x);
+    return Object.keys(y).every(function (i) { return p.indexOf(i) !== -1; }) ?
+            p.every(function (i) { return objectEquals(x[i], y[i]); }) : false;
+}
+
 // fbstats object
 
 // stolen from: http://www.netlobo.com/url_query_string_javascript.html
@@ -696,6 +721,7 @@ fbstats.generate_trends = function (tid, typeid) {
 
     var first_date = new Date(+thread.messages[0].timestamp);
     first_date.setHours(0, 0, 0, 0);
+    first_date = new Date(first_date.getFullYear(), first_date.getMonth(), first_date.getDate());
     var rfirst_date = new Date(+thread.messages[0].timestamp);
     rfirst_date.setHours(0, 0, 0, 0);
 
@@ -756,6 +782,7 @@ fbstats.generate_trends = function (tid, typeid) {
         if (fbstats.person_msg_count[tid][id] > 0) {
             first_date = new Date(+thread.messages[0].timestamp);
             first_date.setHours(0, 0, 0, 0);
+            first_date = new Date(first_date.getFullYear(), first_date.getMonth(), first_date.getDate());
             var temp = {
                 name: "Msgs from " + fbstats.data.people[id].name,
                 pointInterval: 24 * 3600 * 1000,
