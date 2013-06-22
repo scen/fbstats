@@ -705,6 +705,16 @@ fbstats.generate_trends = function (tid, typeid) {
             xAxis: {
                 type: 'datetime',
                 maxZoom: 24 * 3600000, // 1 day
+                dateTimeLabelFormats: {
+                    millisecond: ' ',
+                    second: ' ',
+                    minute: ' ',
+                    hour: ' ',
+                    day: '%e. %b',
+                    week: '%e. %b',
+                    month: '%b \'%y',
+                    year: '%Y'
+                }
             },
             yAxis: yax,
             series: data_series,
@@ -722,8 +732,6 @@ fbstats.generate_trends = function (tid, typeid) {
     var first_date = new Date(+thread.messages[0].timestamp);
     first_date.setHours(0, 0, 0, 0);
     first_date = new Date(Date.UTC(first_date.getFullYear(), first_date.getMonth(), first_date.getDate()));
-    var rfirst_date = new Date(+thread.messages[0].timestamp);
-    rfirst_date.setHours(0, 0, 0, 0);
 
     var total_msg_chart_data = {
         name: "Total Messages",
@@ -758,11 +766,12 @@ fbstats.generate_trends = function (tid, typeid) {
 
     var today = new Date();
     today.setHours(0, 0, 0, 0);
+    today = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
     var cur_message_count = 0;
     var cur_character_count = 0;
     var elapsed_days = 0;
     while (first_date <= today) {
-        var idx = [first_date.getFullYear(), first_date.getMonth() + 1, first_date.getDate()];
+        var idx = [first_date.getUTCFullYear(), first_date.getUTCMonth() + 1, first_date.getUTCDate()];
         var cnt = fbstats.message_count_per_day[tid][idx] || 0;
         var charcnt = fbstats.character_count_per_day[tid][idx] || 0;
         cur_character_count += charcnt;
@@ -798,7 +807,7 @@ fbstats.generate_trends = function (tid, typeid) {
                 data: []
             };
             while (first_date <= today) {
-                var idx = [first_date.getFullYear(), first_date.getMonth() + 1, first_date.getDate()];
+                var idx = [first_date.getUTCFullYear(), first_date.getUTCMonth() + 1, first_date.getUTCDate()];
                 temp.data.push(fbstats.message_count_per_day_per_person[tid][idx] == null ? 0 : (fbstats.message_count_per_day_per_person[tid][idx][id] || 0));
                 temp2.data.push(fbstats.character_count_per_day_per_person[tid][idx] == null ? 0 : (fbstats.character_count_per_day_per_person[tid][idx][id] || 0));
                 first_date.setDate(first_date.getDate() + 1);
