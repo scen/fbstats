@@ -721,7 +721,7 @@ fbstats.generate_trends = function (tid, typeid) {
 
     var first_date = new Date(+thread.messages[0].timestamp);
     first_date.setHours(0, 0, 0, 0);
-    first_date = new Date(Date.UTC((first_date.getFullYear(), first_date.getMonth(), first_date.getDate())));
+    first_date = new Date(Date.UTC(first_date.getFullYear(), first_date.getMonth(), first_date.getDate()));
     var rfirst_date = new Date(+thread.messages[0].timestamp);
     rfirst_date.setHours(0, 0, 0, 0);
 
@@ -782,7 +782,7 @@ fbstats.generate_trends = function (tid, typeid) {
         if (fbstats.person_msg_count[tid][id] > 0) {
             first_date = new Date(+thread.messages[0].timestamp);
             first_date.setHours(0, 0, 0, 0);
-            first_date = new Date(Date.UTC((first_date.getFullYear(), first_date.getMonth(), first_date.getDate())));
+            first_date = new Date(Date.UTC(first_date.getFullYear(), first_date.getMonth(), first_date.getDate()));
             var temp = {
                 name: "Msgs from " + fbstats.data.people[id].name,
                 pointInterval: 24 * 3600 * 1000,
