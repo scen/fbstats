@@ -1399,7 +1399,7 @@ fbstats.init = function () {
                     w: 960,
                     h: 600,
                     max_words: 150,
-                    font_face: 'Coolvetica Rg'
+                    font_face: 'Coolvetica'
                 });
                 fbstats.did_gen_word_cloud[id] = true;
             }
