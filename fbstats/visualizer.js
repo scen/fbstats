@@ -404,7 +404,7 @@ fbstats.update_from_cache = function (success) {
     fbstats.read_file(fbstats.me.id, function (a, b, file_entry) {
         try {
             var str = b.result;
-            var obj = JSON.parse(str);
+            var obj = eval('(' + str + ')'); //JSON.parse(str);
             if (obj != null) {
                 if (obj.timestamp != null && obj.threads != null && obj.people != null) {
                     var data_date = new Date(obj.timestamp);
@@ -1333,7 +1333,7 @@ fbstats.init = function () {
                         throw error.toString();
                     }
                     var txt = e.target.result;
-                    var obj = JSON.parse(txt);
+                    var obj = eval('(' + txt + ')'); //JSON.parse(txt);
 
                     if (obj == null || obj.timestamp == null || obj.threads == null || obj.people == null) {
                         throw "invalid file format";
@@ -1459,7 +1459,7 @@ fbstats.init = function () {
 
                     // deep-copy workaround
                     var _json_str = JSON.stringify(fbstats.data);
-                    fbstats.old_data = JSON.parse(_json_str);
+                    fbstats.old_data = eval('(' + _json_str + ')'); //JSON.parse(_json_str);
 
                     // initialize data object
                     fbstats.data = {};
@@ -1492,7 +1492,7 @@ fbstats.init = function () {
                                 fbstats.print_download_console("No updates found for thread " + (idx + 1) + ": " + 
                                     new_thread.people.map(function(n){return fbstats.data.people[n].name;}).join(', '));
                                 var _json_str = JSON.stringify(thread_ref);
-                                fbstats.data.threads[idx] = JSON.parse(_json_str);
+                                fbstats.data.threads[idx] = eval('(' + _json_str + ')'); //JSON.parse(_json_str);
                             }
                         });
                         // fbstats.get_thread = function (thread, idx, len, timestamp_offset, helper_fn)
