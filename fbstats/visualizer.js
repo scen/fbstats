@@ -76,6 +76,10 @@ fbstats.get_url_param = function (name) {
     else return results[1];
 };
 
+fbstats.abbrev = function(str, len) {
+    if (str.length <= len) return str;
+    return str.substring(0, len) + "...";
+}
 
 fbstats.update_alert = function (type, html) {
     $("#top_notification").removeClass();
@@ -155,6 +159,18 @@ fbstats.finish_auth = function () {
     }
 };
 
+fbstats.get_location_city = function(msg) {
+    if (msg == null || msg.coordinates == null || msg.coordinates.latitude == null || msg.coordinates.longitude == null) return "";
+    var url = "http://maps.googleapis.com/maps/api/geocode/xml?sensor=true&latlng=" + msg.coordinates.latitude + "," + msg.coordinates.longitude;
+    var xml = $.ajax({
+        url: url,
+        dataType: "xml",
+        async: false
+    }).responseXML;
+    console.log(xml);
+    var json = xml2json(xml);
+    console.log(json);
+}
 
 fbstats.get_thread = function (thread, idx, len, timestamp_offset, helper_fn) {
     FB.api('fql', {
@@ -208,9 +224,6 @@ fbstats.get_thread = function (thread, idx, len, timestamp_offset, helper_fn) {
     });
 };
 
-
-// this function recursively calls itself on the next index after waiting at the tail
-// quick-hack for facebook's API limits
 
 fbstats.set_progress_bar = function (num) {
     if (num == 0) {
@@ -315,7 +328,8 @@ fbstats.update_nav = function () {
             var except_me = [];
             $.each(thread.people, function (idx, id) {
                 if (id != fbstats.me.id) {
-                    except_me.push(fbstats.data.people[id].name);
+                    if (fbstats.data.people[id].name != "")
+                        except_me.push(fbstats.data.people[id].name);
                 }
             });
             var names_without_me = except_me.join(', ');
@@ -329,12 +343,14 @@ fbstats.update_nav = function () {
                 }
             });
 
-            // Populate side nav bar
-            var names = thread.people.map(function (id) {
-                return fbstats.data.people[id].name;
-            }).join(", ");
-            var and_names_without_me = except_me.slice(0, except_me.length).join(', ') + (except_me.length <= 1 ? '' : ' and ' + except_me[except_me.length - 1]);
-            var elem = $("<li class='navbar_conversation' data-tid='" +thread.id+"'><a href='#' id='" + fixid(thread.id) + "' class='navbar_entry'>" + names_without_me + "</a></li>");
+            // // Populate side nav bar
+            // var names = thread.people.map(function (id) {
+            //     if (fbstats.data.people[id].name == "") return null;
+            //     return fbstats.data.people[id].name;
+            // }).filter(function(n) { return n; }).join(", ");
+            // var and_names_without_me = except_me.slice(0, except_me.length).join(', ') + (except_me.length <= 1 ? '' : ' and ' + except_me[except_me.length - 1]);
+            var elem = $("<li class='navbar_conversation' data-tid='" +thread.id+"'><a href='#' id='" + fixid(thread.id) + "' class='navbar_entry' data-content='" + names_without_me + "'>"
+             + fbstats.abbrev(names_without_me, 25) + "</a></li>");
             $("#sidenav").append(elem);
 
             // populate overview table
@@ -348,6 +364,10 @@ fbstats.update_nav = function () {
         }
     });
     fbstats.regen_overview_table();
+    $('.navbar_entry').popover({
+        placement: 'right',
+        trigger: 'hover'
+    });
     $.unblockUI();
 }
 
@@ -888,14 +908,19 @@ fbstats.gen_thread = function (tid) {
         var except_me = [];
         $.each(thread.people, function (idx, id) {
             if (id != fbstats.me.id) {
-                except_me.push(fbstats.data.people[id].name);
+                if (fbstats.data.people[id].name != "" && fbstats.data.people[id].name != null)
+                    except_me.push(fbstats.data.people[id].name);
             }
         });
         var names_without_me = except_me.join(', ');
         // Populate side nav bar
         var names = thread.people.map(function (id) {
+            if (fbstats.data.people[id].name == "")
+            {
+                return null;
+            }
             return fbstats.data.people[id].name;
-        }).join(", ");
+        }).filter(function(n) { return n; }).join(", ");
         var and_names_without_me = except_me.slice(0, except_me.length).join(', ') + (except_me.length <= 1 ? '' : ' and ' + except_me[except_me.length - 1]);
         var mainelem = $("<div id='" + fixid(thread.id) + "_content' class='main_conversation'><h3>Conversation with " + and_names_without_me + "</h3><hr></div>");
 
@@ -937,7 +962,8 @@ fbstats.gen_thread = function (tid) {
         var char_pichart = $("<div class='chart300' id='" + fixid(thread.id) + "_charpichart'>");
         home.append(msg_pichart);
         home.append(char_pichart);
-        console.log(fbstats.person_msg_count[tid]);
+        // console.log(fbstats.person_msg_count[tid]);
+        var showLegend = thread.people.length <= 20;
         msg_pichart.highcharts({
             title: {
                 text: 'Message sending distribution'
@@ -953,7 +979,7 @@ fbstats.gen_thread = function (tid) {
                     dataLabels: {
                         enabled: false
                     },
-                    showInLegend: true
+                    showInLegend: showLegend
                 }
             },
             credits: {
@@ -982,7 +1008,7 @@ fbstats.gen_thread = function (tid) {
                     dataLabels: {
                         enabled: false
                     },
-                    showInLegend: true
+                    showInLegend: showLegend
                 }
             },
             credits: {
