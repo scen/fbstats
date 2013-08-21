@@ -1439,7 +1439,7 @@ fbstats.init = function () {
         }
     });
 
-    $(document).on('click', '.active-select', function(evt){
+    $(document).on('change', '.active-select', function(evt){
         var tgt = $(evt.target);
         var id = tgt.attr('data-tid');
         var ts = tgt.find('option:selected').html();
