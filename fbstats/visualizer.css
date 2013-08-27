@@ -45,3 +45,11 @@
 	font-family: Coolvetica;
 	src: url(font/coolvetica.ttf);
 }
+
+div.map-canvas {
+	height: 700px;
+}
+
+div.map-canvas img {
+	max-width: inherit !important;
+}

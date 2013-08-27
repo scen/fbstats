@@ -39,6 +39,33 @@ function is_num(num) {
     return !isNaN(num);
 }
 
+jQuery.fn.dataTableExt.oSort['emptystring-asc'] = function(x,y) {
+    var retVal;
+    x = $.trim(x);
+    y = $.trim(y);
+ 
+    if (x==y) retVal= 0;
+    else if (x == "" || x == "&nbsp;") retVal=  1;
+    else if (y == "" || y == "&nbsp;") retVal=  -1;
+    else if (x > y) retVal=  1;
+    else retVal = -1;  // <- this was missing in version 1
+ 
+    return retVal;
+};
+jQuery.fn.dataTableExt.oSort['emptystring-desc'] = function(y,x) {
+    var retVal;
+    x = $.trim(x);
+    y = $.trim(y);
+ 
+    if (x==y) retVal= 0; 
+    else if (x == "" || x == "&nbsp;") retVal=  -1;
+    else if (y == "" || y == "&nbsp;") retVal=  1;
+    else if (x > y) retVal=  1;
+    else retVal = -1; // <- this was missing in version 1
+ 
+    return retVal;
+};
+
 // http://stackoverflow.com/questions/201183/how-do-you-determine-equality-for-two-javascript-objects
 function obj_equals(x, y) {
     // if both are function
@@ -159,17 +186,43 @@ fbstats.finish_auth = function () {
     }
 };
 
-fbstats.get_location_city = function(msg) {
-    if (msg == null || msg.coordinates == null || msg.coordinates.latitude == null || msg.coordinates.longitude == null) return "";
-    var url = "http://maps.googleapis.com/maps/api/geocode/xml?sensor=true&latlng=" + msg.coordinates.latitude + "," + msg.coordinates.longitude;
-    var xml = $.ajax({
+fbstats.contains_types = function(obj, types) {
+    var bad = false;
+    $.each(types, function(idx, type) {
+        if (bad) return;
+        bad |= $.inArray(type, obj.types) == -1;
+    });
+    return !bad;
+}
+
+fbstats.get_location = function(msg) {
+    if (msg == null || msg.coordinates == null || msg.coordinates.latitude == null || msg.coordinates.longitude == null) return null;
+    var url = "http://maps.googleapis.com/maps/api/geocode/json?sensor=true&latlng=" + msg.coordinates.latitude + "," + msg.coordinates.longitude;
+    var json = $.ajax({
         url: url,
-        dataType: "xml",
+        dataType: "json",
         async: false
-    }).responseXML;
-    console.log(xml);
-    var json = xml2json(xml);
-    console.log(json);
+    }).responseJSON;
+    return json;
+}
+
+fbstats.get_city_state = function(loc)
+{
+    if (loc == null || loc.results == null || loc.results.length == 0) return "";
+    var city = "";
+    var state = "";
+    // we only look at 1 result here; maybe look at more TODO
+    $.each(loc.results[0].address_components, function(idx, comp) {
+        if (fbstats.contains_types(comp, ["locality", "political"])) // city name
+        {
+            city = comp.long_name;
+        }
+        else if (fbstats.contains_types(comp, ["administrative_area_level_1", "political"])) // state
+        {
+            state = comp.short_name;
+        }
+    });
+    return city + ", " + state;
 }
 
 fbstats.get_thread = function (thread, idx, len, timestamp_offset, helper_fn) {
@@ -211,6 +264,14 @@ fbstats.get_thread = function (thread, idx, len, timestamp_offset, helper_fn) {
                 cur_message.from = msg.sender.user_id;
                 cur_message.body = msg.body;
                 cur_message.coordinates = msg.coordinates;
+                if (cur_message.coordinates != null)
+                {
+                    cur_message.geocode_loc = fbstats.get_location(cur_message);
+                }
+                else
+                {
+                    cur_message.geocode_loc = null;
+                }
                 cur_message.to = $.map(msg.recipients, function(v, k) { return v.user_id; });
                 // console.log(cur_message);
                 thread.messages.push(cur_message);
@@ -414,6 +475,7 @@ fbstats.update_from_cache = function (success) {
     fbstats.did_gen_thread = {};
     fbstats.did_gen_word_cloud = {};
     fbstats.did_gen_active_graph = {};
+    fbstats.did_gen_map = {};
     fbstats.message_count_per_day = {};
     fbstats.message_count_per_day_per_person = {};
     fbstats.character_count_per_day = {};
@@ -699,6 +761,77 @@ fbstats.generate_word_cloud = function (tid, opts) {
         .start();
 }
 
+function rainbow(numOfSteps, step) {
+    // This function generates vibrant, "evenly spaced" colours (i.e. no clustering). This is ideal for creating easily distiguishable vibrant markers in Google Maps and other apps.
+    // HSV to RBG adapted from: http://mjijackson.com/2008/02/rgb-to-hsl-and-rgb-to-hsv-color-model-conversion-algorithms-in-javascript
+    // Adam Cole, 2011-Sept-14
+    var r, g, b;
+    var h = step / numOfSteps;
+    var i = ~~(h * 6);
+    var f = h * 6 - i;
+    var q = 1 - f;
+    switch(i % 6){
+        case 0: r = 1, g = f, b = 0; break;
+        case 1: r = q, g = 1, b = 0; break;
+        case 2: r = 0, g = 1, b = f; break;
+        case 3: r = 0, g = q, b = 1; break;
+        case 4: r = f, g = 0, b = 1; break;
+        case 5: r = 1, g = 0, b = q; break;
+    }
+    var c = ("00" + (~ ~(r * 255)).toString(16)).slice(-2) + ("00" + (~ ~(g * 255)).toString(16)).slice(-2) + ("00" + (~ ~(b * 255)).toString(16)).slice(-2);
+    return (c);
+}
+
+
+fbstats.gen_map = function(tid) {
+    var maptab = $('#' + fixid(tid) + "_map");
+    var map_elem = $("<div class='map-canvas' id='"+ fixid(tid) + "_mapcanvas" + "'>");
+    maptab.append(map_elem);
+
+    var thread = fbstats.data.threads[fbstats.tid_to_idx[tid]];
+
+    var pid = {};
+    var curid = 0;
+    // count how many unique markers we need
+    $.each(thread.messages, function(idx, msg) {
+        if (msg.coordinates != null)
+        {
+            if (pid[msg.from] == null) pid[msg.from] = curid++;
+        }
+    });
+    console.log(curid);
+    $.each(pid, function(idx, p) {
+        pid[idx] = new StyledIcon(StyledIconTypes.MARKER, {color: rainbow(curid, p)});
+    });
+    console.log(pid);
+
+    var USA_CENTER = new google.maps.LatLng(41.850033, -87.6500523);
+    var map_opts = {
+        mapTypeId: google.maps.MapTypeId.ROADMAP,
+        zoom: 2,
+        center: USA_CENTER
+    };
+    var map = new google.maps.Map(map_elem[0], map_opts);
+    var infowindow = new google.maps.InfoWindow();
+    $.each(thread.messages, function(idx, msg) {
+        if (msg.coordinates == null) return;
+        var pos = new google.maps.LatLng(+msg.coordinates.latitude, +msg.coordinates.longitude);
+        var contentstr = "<strong>" + fbstats.data.people[msg.from].name + "</strong><p>" + (msg.body == null ? "" : msg.body) + "</p>";
+        var marker = new StyledMarker({
+            styleIcon: pid[msg.from],
+            position: pos,
+            map: map,
+            title: fbstats.data.people[msg.from].name,
+            animation: google.maps.Animation.DROP,
+        });
+        google.maps.event.addListener(marker, 'click', function(){
+            infowindow.close();
+            infowindow.setContent(contentstr);
+            infowindow.open(map, marker);
+        });
+    });
+};
+
 fbstats.generate_trends = function (tid, typeid) {
     typeid = typeid || "message";
     var thread = fbstats.data.threads[fbstats.tid_to_idx[tid]];
@@ -867,7 +1000,7 @@ fbstats.gen_thread = function (tid) {
         // compute some quick stats
 
         var mtable = "<table class='table table-striped table-hover'><thead>" +
-            "<tr><th>MsgID</th><th>From</th><th>Time sent</th><th>Message text</th></tr></thead><tbody>";
+            "<tr><th>MsgID</th><th>From</th><th>Time sent</th><th>Message text</th><th>Location</th></tr></thead><tbody>";
         var char_count = 0;
         fbstats.person_char_count[tid] = {};
         fbstats.message_count_per_day[tid] = {};
@@ -877,8 +1010,10 @@ fbstats.gen_thread = function (tid) {
         fbstats.person_msg_count[tid] = {};
         $.each(thread.messages, function (idx, msg) {
             try {
+                var loc = fbstats.get_city_state(msg.geocode_loc);
+                // if (loc == "") loc = "";
                 mtable += "<tr><td>" + (idx+1) + "</td><td>" + fbstats.data.people[msg.from].name + "</td><td>" +
-                    (new Date(+msg.timestamp)).toLocaleString() + "</td><td>" + (msg.body == null ? "" : msg.body) + "</td></tr>";
+                    (new Date(+msg.timestamp)).toLocaleString() + "</td><td>" + (msg.body == null ? "" : msg.body) + "</td><td>" + loc + "</td></tr>";
             } catch (err) {
                 console.log(err.message);
             }
@@ -933,6 +1068,7 @@ fbstats.gen_thread = function (tid) {
         tabs.append($("<li><a class='thread_tab' data-tid='" + (thread.id) + "' data-tab-type='trends' data-toggle='tab' href='#" + fixid(thread.id) + "_trends'>Trends over time</a></li>"));
         tabs.append($("<li><a class='thread_tab' data-tid='" + (thread.id) + "' data-tab-type='cloud' data-toggle='tab' href='#x" + fixid(thread.id) + "_cloud'>Word cloud</a></li>"));
         tabs.append($("<li><a class='thread_tab' data-tid='" + (thread.id) + "' data-tab-type='active' data-toggle='tab' href='#" + fixid(thread.id) + "_active'>Most active time</a></li>"));
+        tabs.append($("<li><a class='thread_tab' data-tid='" + (thread.id) + "' data-tab-type='map' data-toggle='tab' href='#" + fixid(thread.id) + "_map'>Map</a></li>"));
         mainelem.append(tabs);
 
         // populate tab content
@@ -1060,6 +1196,9 @@ fbstats.gen_thread = function (tid) {
         active_tab.append(active_chart);
         tab_content.append(active_tab);
 
+        var map_tab = $('<div class="tab-pane" id="' + fixid(thread.id) + '_map"></div>');
+        tab_content.append(map_tab);
+
         mainelem.append(tab_content);
 
         emtable.dataTable({
@@ -1089,6 +1228,9 @@ fbstats.gen_thread = function (tid) {
                 sWidth: "15%"
             }, {
                 bSortable: true,
+            }, {
+                sType: "emptystring",
+                sWidth: "10%"
             }]
         });
 
@@ -1435,6 +1577,14 @@ fbstats.init = function () {
             {
                 fbstats.generate_active_graph(id, 60, '1 hr'); // default bucket size: 1 hour
                 fbstats.did_gen_active_graph[id] = true;
+            }
+        }
+        else if (tab_type == "map")
+        {
+            if (fbstats.did_gen_map[id] == null)
+            {
+                fbstats.gen_map(id);
+                fbstats.did_gen_map[id] = true;
             }
         }
     });
