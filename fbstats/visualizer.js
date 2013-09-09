@@ -1231,11 +1231,12 @@ fbstats.gen_thread = function (tid) {
                 bSortable: true,
                 sWidth: "10%"
             }, {
+                sType: "emptystring",
+                sWidth: "10%"
+            }, {
                 sWidth: "5%",
                 sType: "numeric",
                 bSortable: true
-            }, {
-                sType: "emptystring",
             }]
         });
 
