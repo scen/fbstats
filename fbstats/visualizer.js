@@ -1000,7 +1000,7 @@ fbstats.gen_thread = function (tid) {
         // compute some quick stats
 
         var mtable = "<table class='table table-striped table-hover'><thead>" +
-            "<tr><th>MsgID</th><th>From</th><th>Time sent</th><th>Message text</th><th>Location</th></tr></thead><tbody>";
+            "<tr><th>MsgID</th><th>From</th><th>Time sent</th><th>Message text</th><th>Location</th><th>Char cnt</th></tr></thead><tbody>";
         var char_count = 0;
         fbstats.person_char_count[tid] = {};
         fbstats.message_count_per_day[tid] = {};
@@ -1012,8 +1012,9 @@ fbstats.gen_thread = function (tid) {
             try {
                 var loc = fbstats.get_city_state(msg.geocode_loc);
                 // if (loc == "") loc = "";
+                var body = msg.body == null ? "" : msg.body;
                 mtable += "<tr><td>" + (idx+1) + "</td><td>" + fbstats.data.people[msg.from].name + "</td><td>" +
-                    (new Date(+msg.timestamp)).toLocaleString() + "</td><td>" + (msg.body == null ? "" : msg.body) + "</td><td>" + loc + "</td></tr>";
+                    (new Date(+msg.timestamp)).toLocaleString() + "</td><td>" + body + "</td><td>" + loc + "</td><td>" + (body == null ? 0 : body.length) + "</td></tr>";
             } catch (err) {
                 console.log(err.message);
             }
