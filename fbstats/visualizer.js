@@ -1229,11 +1229,12 @@ fbstats.gen_thread = function (tid) {
                 sWidth: "15%"
             }, {
                 bSortable: true,
+                sWidth: "10%"
             }, {
+                sWidth: "5%",
                 bSortable: true
             }, {
                 sType: "emptystring",
-                sWidth: "10%"
             }]
         });
 
