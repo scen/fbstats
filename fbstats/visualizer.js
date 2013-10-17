@@ -1011,6 +1011,9 @@ fbstats.gen_thread = function (tid) {
         $.each(thread.messages, function (idx, msg) {
             try {
                 var loc = fbstats.get_city_state(msg.geocode_loc);
+                if (loc != null && loc != "") {
+                    loc += " (" + msg.coordinates.latitude + "," + msg.coordinates.longitude + ")";
+                }
                 // if (loc == "") loc = "";
                 var body = msg.body == null ? "" : msg.body;
                 mtable += "<tr><td>" + (idx+1) + "</td><td>" + fbstats.data.people[msg.from].name + "</td><td>" +
