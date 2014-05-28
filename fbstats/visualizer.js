@@ -1028,7 +1028,7 @@ fbstats.gen_thread = function (tid) {
                     if (loc == null) loc = "";
                     else loc += " ";
                     loc += "(" + msg.coordinates.latitude + "," + msg.coordinates.longitude + ")";
-                }
+                } else loc = "";
                 // if (loc == "") loc = "";
                 var body = msg.body == null ? "" : msg.body;
                 mtable += "<tr><td>" + (idx+1) + "</td><td>" + fbstats.data.people[msg.from].name + "</td><td>" +
