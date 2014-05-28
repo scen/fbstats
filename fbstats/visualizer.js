@@ -946,8 +946,8 @@ fbstats.generate_trends = function (tid, typeid) {
         avg_msg = fbstats.alpha*cnt + (1.0-fbstats.alpha)*avg_msg;
         avg_char = fbstats.alpha*charcnt + (1.0-fbstats.alpha)*avg_char;
 
-        avg_msg_per_day.data.push(cur_message_count / elapsed_days);
-        avg_char_per_day.data.push(cur_character_count / elapsed_days);
+        avg_msg_per_day.data.push(avg_msg);
+        avg_char_per_day.data.push(avg_char);
     }
     all_message_data.push(total_msg_chart_data);
     all_message_data.push(avg_msg_per_day);
