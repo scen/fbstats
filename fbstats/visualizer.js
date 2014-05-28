@@ -4,7 +4,7 @@ var fbstats = fbstats || {};
 fbstats.data_downloader = fbstats.data_downloader || {};
 fbstats.fs_bytes = 30 * 1024 * 1024; // 30 MB
 
-fbstats.alpha = 0.8; // for moving average
+fbstats.alpha = 0.1; // for moving average
 
 
 API_CALL_DELAY = 2000; // ms
