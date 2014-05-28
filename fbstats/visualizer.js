@@ -3,6 +3,10 @@ APP_ID = '167939483377379';
 var fbstats = fbstats || {};
 fbstats.data_downloader = fbstats.data_downloader || {};
 fbstats.fs_bytes = 30 * 1024 * 1024; // 30 MB
+
+fbstats.alpha = 0.8; // for moving average
+
+
 API_CALL_DELAY = 2000; // ms
 API_TIMEOUT_DELAY = 1000 * 60 * 5; // 5 minutes
 API_TIMEOUT_MESSAGE = "Facebook API timed out. Auto-retrying in 5 minutes";
@@ -923,6 +927,11 @@ fbstats.generate_trends = function (tid, typeid) {
     var cur_message_count = 0;
     var cur_character_count = 0;
     var elapsed_days = 0;
+
+    // exp moving avg
+    var avg_msg = 0;
+    var avg_char = 0;
+
     while (first_date <= today) {
         var idx = [first_date.getUTCFullYear(), first_date.getUTCMonth() + 1, first_date.getUTCDate()];
         var cnt = fbstats.message_count_per_day[tid][idx] || 0;
@@ -933,6 +942,10 @@ fbstats.generate_trends = function (tid, typeid) {
         total_char_chart_data.data.push(charcnt);
         first_date.setDate(first_date.getDate() + 1);
         elapsed_days++;
+        
+        avg_msg = fbstats.alpha*cnt + (1.0-fbstats.alpha)*avg_msg;
+        avg_char = fbstats.alpha*charcnt + (1.0-fbstats.alpha)*avg_char;
+
         avg_msg_per_day.data.push(cur_message_count / elapsed_days);
         avg_char_per_day.data.push(cur_character_count / elapsed_days);
     }
