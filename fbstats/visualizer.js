@@ -1023,7 +1023,7 @@ fbstats.gen_thread = function (tid) {
         fbstats.person_msg_count[tid] = {};
         $.each(thread.messages, function (idx, msg) {
             try {
-                var loc = fbstats.get_city_state(msg.geocode_loc);
+                var loc = null; // fbstats.get_city_state(msg.geocode_loc); // disabled for performance gains TODO add opt
                 if (msg.coordinates != null) {
                     if (loc == null) loc = "";
                     else loc += " ";
