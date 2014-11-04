@@ -923,7 +923,7 @@ fbstats.generate_trends = function (tid, typeid) {
 
     var today = new Date();
     today.setHours(0, 0, 0, 0);
-    today = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+    // today = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
     var cur_message_count = 0;
     var cur_character_count = 0;
     var elapsed_days = 0;
