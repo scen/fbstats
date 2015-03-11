@@ -2,7 +2,7 @@ APP_ID = '167939483377379';
 
 var fbstats = fbstats || {};
 fbstats.data_downloader = fbstats.data_downloader || {};
-fbstats.fs_bytes = 30 * 1024 * 1024; // 30 MB
+fbstats.fs_bytes = 100 * 1024 * 1024; // 100 MB
 
 fbstats.alpha = 0.2; // for moving average
 
