@@ -386,6 +386,7 @@ fbstats.on_fs_init = function (fs) {
 fbstats.update_nav = function () {
     var tbody = $("#overview_table > tbody");
     fbstats.tid_to_idx = {};
+    broken_threads = {};
     $.each(fbstats.data.threads, function (idx, thread) {
         fbstats.tid_to_idx[thread.id] = idx;
         if (thread.bad == null) {
@@ -393,6 +394,13 @@ fbstats.update_nav = function () {
             var except_me = [];
             $.each(thread.people, function (idx, id) {
                 if (id != fbstats.me.id) {
+                    if (!(id in fbstats.data.people)) {
+                        console.log("error: person id does not exist");
+                        console.log(id);
+                        console.log(thread);
+                        broken_threads[thread.id] = true;
+                        return;
+                    }
                     if (fbstats.data.people[id].name != "")
                         except_me.push(fbstats.data.people[id].name);
                 }
@@ -434,6 +442,9 @@ fbstats.update_nav = function () {
         trigger: 'hover'
     });
     $.unblockUI();
+    console.log("broken threads");
+    console.log(broken_threads);
+    console.log(Object.keys(broken_threads).length);
 }
 
 fbstats.regen_overview_table = function () {
