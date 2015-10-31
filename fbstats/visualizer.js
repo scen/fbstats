@@ -47,26 +47,26 @@ jQuery.fn.dataTableExt.oSort['emptystring-asc'] = function(x,y) {
     var retVal;
     x = $.trim(x);
     y = $.trim(y);
- 
+
     if (x==y) retVal= 0;
     else if (x == "" || x == "&nbsp;") retVal=  1;
     else if (y == "" || y == "&nbsp;") retVal=  -1;
     else if (x > y) retVal=  1;
     else retVal = -1;  // <- this was missing in version 1
- 
+
     return retVal;
 };
 jQuery.fn.dataTableExt.oSort['emptystring-desc'] = function(y,x) {
     var retVal;
     x = $.trim(x);
     y = $.trim(y);
- 
-    if (x==y) retVal= 0; 
+
+    if (x==y) retVal= 0;
     else if (x == "" || x == "&nbsp;") retVal=  -1;
     else if (y == "" || y == "&nbsp;") retVal=  1;
     else if (x > y) retVal=  1;
     else retVal = -1; // <- this was missing in version 1
- 
+
     return retVal;
 };
 
@@ -257,28 +257,36 @@ fbstats.get_thread = function (thread, idx, len, timestamp_offset, helper_fn) {
             var last_timestamp = 0;
             $.each(data.data, function(idx, msg){
                 // todo check for object_sender since that means an event/page/etc sent it
-                console.assert(msg.sender != null);
-                console.assert(msg.recipients != null);
-                console.assert(msg.body != null);
-                cur_message = {};
-                cur_message.timestamp = +msg.timestamp;
-                last_timestamp = +msg.timestamp;
-                cur_message.id = msg.message_id;
-                cur_message.tags = msg.tags;
-                cur_message.from = msg.sender.user_id;
-                cur_message.body = msg.body;
-                cur_message.coordinates = msg.coordinates;
-                if (cur_message.coordinates != null)
-                {
-                    cur_message.geocode_loc = fbstats.get_location(cur_message);
+                // console.assert(msg.sender != null);
+                // console.assert(msg.recipients != null);
+                // console.assert(msg.body != null);
+                if (msg.sender === null || msg.recipients === null || msg.body === null) {
+                    console.log("WARNING: EITHER SENDER, RECIPIENTS, or BODY is null");
+                    console.log("message");
+                    console.log(msg);
+                    console.log("thread");
+                    console.log(thread);
+                } else {
+                    cur_message = {};
+                    cur_message.timestamp = +msg.timestamp;
+                    last_timestamp = +msg.timestamp;
+                    cur_message.id = msg.message_id;
+                    cur_message.tags = msg.tags;
+                    cur_message.from = msg.sender.user_id;
+                    cur_message.body = msg.body;
+                    cur_message.coordinates = msg.coordinates;
+                    if (cur_message.coordinates != null)
+                    {
+                        cur_message.geocode_loc = fbstats.get_location(cur_message);
+                    }
+                    else
+                    {
+                        cur_message.geocode_loc = null;
+                    }
+                    cur_message.to = $.map(msg.recipients, function(v, k) { return v.user_id; });
+                    // console.log(cur_message);
+                    thread.messages.push(cur_message);
                 }
-                else
-                {
-                    cur_message.geocode_loc = null;
-                }
-                cur_message.to = $.map(msg.recipients, function(v, k) { return v.user_id; });
-                // console.log(cur_message);
-                thread.messages.push(cur_message);
             });
             fbstats.print_download_console("Received " + thread.messages.length + " of " + thread.message_count + " messages");
             fbstats.set_progress_bar((idx / len) + ((1.0 / len) * (thread.messages.length / (thread.message_count || 100000000000))));
@@ -307,7 +315,7 @@ fbstats.get_all_threads_helper = function (idx, len) {
 
     fbstats.set_progress_bar(idx / len);
     fbstats.data.threads[idx].messages = [];
-    fbstats.print_download_console("Downloading messages for thread " + (idx + 1) + " of " + len + ": " + 
+    fbstats.print_download_console("Downloading messages for thread " + (idx + 1) + " of " + len + ": " +
         fbstats.data.threads[idx].people.map(function(n){return fbstats.data.people[n].name;}).join(', '));
 
     call_delay(function () {
@@ -390,7 +398,7 @@ fbstats.update_nav = function () {
     $.each(fbstats.data.threads, function (idx, thread) {
         fbstats.tid_to_idx[thread.id] = idx;
         if (thread.bad == null) {
-            // generate list of names           
+            // generate list of names
             var except_me = [];
             $.each(thread.people, function (idx, id) {
                 if (id != fbstats.me.id) {
@@ -572,7 +580,7 @@ fbstats.generate_active_graph = function(tid, step_interval_minutes, name) {
         };
         if (buckets[person] != null)
         {
-            for (var i = 0; i < bucket_count; i++) 
+            for (var i = 0; i < bucket_count; i++)
                 buckets[person][i] = buckets[person][i] || 0;
             curdata.data = $.map(buckets[person], function(v, k) { return v; });
             data.push(curdata);
@@ -1223,7 +1231,7 @@ fbstats.gen_thread = function (tid) {
 
         var active_select_id = tid + '_active_select';
 
-        var active_form = $('<form class="form"><label for="'+active_select_id+'">Time step: </label><select class="active-select" data-tid="' + (thread.id) + '" id="' + 
+        var active_form = $('<form class="form"><label for="'+active_select_id+'">Time step: </label><select class="active-select" data-tid="' + (thread.id) + '" id="' +
             active_select_id + '" name="' + active_select_id + '"><option value="15">15 min</option><option value="30">30 min</option><option value="60" selected="selected">1 hr</option><option value="120">2 hr</option>' +
             '<option value="360">6 hr</option><option value="720">12 hr</option></select></form>');
         active_tab.append(active_form);
@@ -1415,7 +1423,7 @@ fbstats.retrieve_btn_click = function () {
                             setTimeout(fbstats.retrieve_btn_click, API_TIMEOUT_DELAY);
                         } else {
                             call_delay(function() {
-                                fbstats.process_thread_list(inbox, fbstats.get_all_threads); 
+                                fbstats.process_thread_list(inbox, fbstats.get_all_threads);
                             });
                         }
                     });
@@ -1705,7 +1713,7 @@ fbstats.init = function () {
                             }
                             else if (found_thread)
                             {
-                                fbstats.print_download_console("No updates found for thread " + (idx + 1) + ": " + 
+                                fbstats.print_download_console("No updates found for thread " + (idx + 1) + ": " +
                                     new_thread.people.map(function(n){return fbstats.data.people[n].name;}).join(', '));
                                 var _json_str = JSON.stringify(thread_ref);
                                 fbstats.data.threads[idx] = eval('(' + _json_str + ')'); //JSON.parse(_json_str);
@@ -1723,13 +1731,13 @@ fbstats.init = function () {
                                     fbstats.data_downloader.done();
                                 }
                                 call_delay(function() {
-                                    fbstats.print_download_console("Updating thread " + (idx + 1) + " of " + fbstats.threads_to_update.length + ": " + 
+                                    fbstats.print_download_console("Updating thread " + (idx + 1) + " of " + fbstats.threads_to_update.length + ": " +
                                         fbstats.data.threads[fbstats.threads_to_update[idx]].people.map(function(n){return fbstats.data.people[n].name;}).join(', '));
                                     fbstats.get_thread(fbstats.data.threads[fbstats.threads_to_update[idx]], idx, len, 0, lambda);
                                 });
                             };
                             fbstats.print_download_console("Found " + fbstats.threads_to_update.length + " threads to update");
-                            fbstats.print_download_console("Updating thread " + (1) + " of " + fbstats.threads_to_update.length + ": " + 
+                            fbstats.print_download_console("Updating thread " + (1) + " of " + fbstats.threads_to_update.length + ": " +
                                     fbstats.data.threads[fbstats.threads_to_update[0]].people.map(function(n){return fbstats.data.people[n].name;}).join(', '));
                             fbstats.get_thread(fbstats.data.threads[fbstats.threads_to_update[0]], 0, fbstats.threads_to_update.length, 0, lambda);
                         }
@@ -1750,7 +1758,7 @@ fbstats.init = function () {
                             setTimeout(fbstats.retrieve_btn_click, API_TIMEOUT_DELAY);
                         } else {
                             call_delay(function() {
-                                fbstats.process_thread_list(inbox, on_finish_thread_list); 
+                                fbstats.process_thread_list(inbox, on_finish_thread_list);
                             });
                         }
                     });
