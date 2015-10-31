@@ -266,6 +266,9 @@ fbstats.get_thread = function (thread, idx, len, timestamp_offset, helper_fn) {
                     console.log(msg);
                     console.log("thread");
                     console.log(thread);
+                    fbstats.print_download_console("Error encountered, skipping thread.");
+                    console.log("SKIPPING");
+                    helper_fn(idx + 1, len);
                 } else {
                     cur_message = {};
                     cur_message.timestamp = +msg.timestamp;
